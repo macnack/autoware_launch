@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="use_sim_time" default="false"/>
+  <arg name="nav2_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_offroad.param.yaml"/>
+  <arg name="bridge_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_path_to_trajectory_bridge.param.yaml"/>
+  <arg name="free_map_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/free_map_publisher.param.yaml"/>
+
+  <node pkg="autoware_nav2_offroad" exec="free_map_publisher_node" name="free_map_publisher" output="screen">
+    <param from="$(var free_map_param_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <node pkg="nav2_planner" exec="planner_server" name="planner_server" output="screen">
+    <param from="$(var nav2_param_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="global_costmap.global_costmap.use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <node pkg="nav2_smoother" exec="smoother_server" name="smoother_server" output="screen">
+    <param from="$(var nav2_param_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <node pkg="nav2_lifecycle_manager" exec="lifecycle_manager" name="lifecycle_manager_navigation" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="autostart" value="true"/>
+    <param name="node_names" value="[planner_server, smoother_server]"/>
+  </node>
+
+  <node pkg="autoware_nav2_offroad" exec="nav2_path_to_trajectory_bridge_node" name="nav2_path_to_trajectory_bridge" output="screen">
+    <param from="$(var bridge_param_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <node pkg="autoware_nav2_offroad" exec="trajectory_mode_mux_node" name="trajectory_mode_mux" output="screen">
+    <remap from="input/onroad/trajectory"  to="/planning/trajectory_pre_mux"/>
+    <remap from="input/offroad/trajectory" to="/nav2_offroad/planning/trajectory"/>
+    <remap from="output/trajectory"        to="/planning/trajectory"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+</launch>
