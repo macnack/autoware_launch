@@ -8,8 +8,12 @@
   <arg name="longitudinal_controller_mode" default="pid"/>
   <arg name="use_individual_control_param" default="false"/>
   <arg name="use_aeb_autoware_state_check" default="true"/>
+  <arg name="launch_lane_departure_checker" default="true"/>
+  <arg name="launch_control_evaluator" default="true"/>
   <arg name="use_sim_time" default="false"/>
   <arg name="vehicle_model" default="sample_vehicle"/>
+  <arg name="vehicle_cmd_gate_param_path" default="$(find-pkg-share autoware_launch)/config/control/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"/>
+  <arg name="auto_gear_cmd_topic" default="/control/shift_decider/gear_cmd"/>
 
   <!-- Input topic parameters for control modules -->
   <arg name="control_input_objects_topic_name" default="/perception/object_recognition/objects"/>
@@ -52,7 +56,8 @@
     <arg name="nearest_search_param_path" value="$(find-pkg-share autoware_launch)/config/control/common/nearest_search.param.yaml"/>
 
     <!-- package param path -->
-    <arg name="vehicle_cmd_gate_param_path" value="$(find-pkg-share autoware_launch)/config/control/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"/>
+    <arg name="vehicle_cmd_gate_param_path" value="$(var vehicle_cmd_gate_param_path)"/>
+    <arg name="auto_gear_cmd_topic" value="$(var auto_gear_cmd_topic)"/>
     <arg name="control_command_gate_param_path" value="$(find-pkg-share autoware_launch)/config/control/control_command_gate/control_command_gate.param.yaml"/>
     <arg name="lane_departure_checker_param_path" value="$(find-pkg-share autoware_launch)/config/control/lane_departure_checker/lane_departure_checker.param.yaml"/>
     <arg name="control_validator_param_path" value="$(find-pkg-share autoware_launch)/config/control/control_validator/control_validator.param.yaml"/>
@@ -64,5 +69,7 @@
     <arg name="collision_detector_param_path" value="$(find-pkg-share autoware_launch)/config/control/autoware_collision_detector/collision_detector.param.yaml"/>
     <arg name="use_aeb_autoware_state_check" value="$(var use_aeb_autoware_state_check)"/>
     <arg name="predicted_path_checker_param_path" value="$(find-pkg-share autoware_launch)/config/control/predicted_path_checker/predicted_path_checker.param.yaml"/>
+    <arg name="launch_lane_departure_checker" value="$(var launch_lane_departure_checker)"/>
+    <arg name="launch_control_evaluator" value="$(var launch_control_evaluator)"/>
   </include>
 </launch>
