@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Wrapper around autoware_launch/launch/planning_simulator.launch.xml that also
+  starts the nav2_offroad stack (Nav2 planner + bridge + trajectory mux).
+
+  Use this entry point instead of the standard planning_simulator.launch.xml
+  to avoid patching upstream autoware_launch.
+
+  All arguments accepted by the upstream planning_simulator.launch.xml are
+  forwarded as-is.
+-->
+<launch>
+  <!-- Required -->
+  <arg name="map_path" description="point cloud and lanelet2 map directory path"/>
+
+  <!-- Common -->
+  <arg name="vehicle_model" default="sample_vehicle"/>
+  <arg name="sensor_model" default="sample_sensor_kit"/>
+  <arg name="data_path" default="$(env HOME)/autoware_data"/>
+
+  <!-- Module presets -->
+  <arg name="planning_module_preset" default="default"/>
+  <arg name="control_module_preset" default="default"/>
+
+  <!-- Map -->
+  <arg name="lanelet2_map_file" default="lanelet2_map.osm"/>
+  <arg name="pointcloud_map_file" default="pointcloud_map.pcd"/>
+
+  <!-- System -->
+  <arg name="launch_dummy_doors" default="true"/>
+  <arg name="launch_system_monitor" default="false"/>
+  <arg name="launch_dummy_diag_publisher" default="true"/>
+
+  <!-- Scenario / perception -->
+  <arg name="initial_engage_state" default="true"/>
+  <arg name="perception/enable_detection_failure" default="true"/>
+  <arg name="perception/enable_object_recognition" default="true"/>
+  <arg name="perception/enable_traffic_light" default="false"/>
+  <arg name="perception/use_base_link_z" default="true"/>
+  <arg name="sensing/visible_range" default="300.0"/>
+  <arg name="scenario_simulation" default="false"/>
+
+  <!-- Tools -->
+  <arg name="rviz" default="true"/>
+  <arg name="rviz_config_name" default="autoware.rviz"/>
+  <arg name="rviz_config" default="$(find-pkg-share autoware_launch)/rviz/$(var rviz_config_name)"/>
+
+  <!-- Vehicle / time -->
+  <arg name="vehicle_simulation" default="true"/>
+  <arg name="enable_all_modules_auto_mode" default="$(var scenario_simulation)"/>
+  <arg name="use_sim_time" default="$(var scenario_simulation)"/>
+  <arg name="localization_sim_mode" default="api"/>
+
+  <!-- Standard planning_simulator (unmodified upstream entry point) -->
+  <include file="$(find-pkg-share autoware_launch)/launch/planning_simulator.launch.xml">
+    <arg name="map_path" value="$(var map_path)"/>
+    <arg name="vehicle_model" value="$(var vehicle_model)"/>
+    <arg name="sensor_model" value="$(var sensor_model)"/>
+    <arg name="data_path" value="$(var data_path)"/>
+    <arg name="planning_module_preset" value="$(var planning_module_preset)"/>
+    <arg name="control_module_preset" value="$(var control_module_preset)"/>
+    <arg name="lanelet2_map_file" value="$(var lanelet2_map_file)"/>
+    <arg name="pointcloud_map_file" value="$(var pointcloud_map_file)"/>
+    <arg name="launch_dummy_doors" value="$(var launch_dummy_doors)"/>
+    <arg name="launch_system_monitor" value="$(var launch_system_monitor)"/>
+    <arg name="launch_dummy_diag_publisher" value="$(var launch_dummy_diag_publisher)"/>
+    <arg name="initial_engage_state" value="$(var initial_engage_state)"/>
+    <arg name="perception/enable_detection_failure" value="$(var perception/enable_detection_failure)"/>
+    <arg name="perception/enable_object_recognition" value="$(var perception/enable_object_recognition)"/>
+    <arg name="perception/enable_traffic_light" value="$(var perception/enable_traffic_light)"/>
+    <arg name="perception/use_base_link_z" value="$(var perception/use_base_link_z)"/>
+    <arg name="sensing/visible_range" value="$(var sensing/visible_range)"/>
+    <arg name="scenario_simulation" value="$(var scenario_simulation)"/>
+    <arg name="rviz" value="$(var rviz)"/>
+    <arg name="rviz_config_name" value="$(var rviz_config_name)"/>
+    <arg name="rviz_config" value="$(var rviz_config)"/>
+    <arg name="vehicle_simulation" value="$(var vehicle_simulation)"/>
+    <arg name="enable_all_modules_auto_mode" value="$(var enable_all_modules_auto_mode)"/>
+    <arg name="use_sim_time" value="$(var use_sim_time)"/>
+    <arg name="localization_sim_mode" value="$(var localization_sim_mode)"/>
+  </include>
+
+  <!-- Nav2 off-road stack: planner + bridge + trajectory mux -->
+  <include file="$(find-pkg-share autoware_nav2_offroad)/launch/nav2_offroad.launch.xml">
+    <arg name="use_sim_time" value="$(var use_sim_time)"/>
+  </include>
+</launch>
