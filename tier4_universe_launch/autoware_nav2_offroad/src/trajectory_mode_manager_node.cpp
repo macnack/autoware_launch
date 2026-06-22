@@ -19,11 +19,16 @@
 #include <rclcpp/rclcpp.hpp>
 #include <tf2/utils.h>
 
+#include <autoware_nav2_offroad_msgs/msg/trajectory_mode_debug.hpp>
 #include <autoware_nav2_offroad_msgs/msg/trajectory_mode_state.hpp>
 #include <autoware_nav2_offroad_msgs/srv/change_trajectory_mode.hpp>
 #include <autoware_planning_msgs/msg/trajectory.hpp>
+#include <geometry_msgs/msg/point.hpp>
 #include <nav2_msgs/srv/manage_lifecycle_nodes.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <std_msgs/msg/color_rgba.hpp>
+#include <std_msgs/msg/string.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -37,8 +42,11 @@ namespace
 {
 using Trajectory = autoware_planning_msgs::msg::Trajectory;
 using TrajectoryModeState = autoware_nav2_offroad_msgs::msg::TrajectoryModeState;
+using TrajectoryModeDebug = autoware_nav2_offroad_msgs::msg::TrajectoryModeDebug;
 using ChangeTrajectoryMode = autoware_nav2_offroad_msgs::srv::ChangeTrajectoryMode;
 using ManageLifecycleNodes = nav2_msgs::srv::ManageLifecycleNodes;
+using Marker = visualization_msgs::msg::Marker;
+using MarkerArray = visualization_msgs::msg::MarkerArray;
 
 std::string modeToString(const Mode mode)
 {
@@ -103,12 +111,17 @@ public:
       declare_parameter<std::string>("lifecycle_manager_service", "/lifecycle_manager_navigation/manage_nodes");
     const double publish_rate_hz = std::max(declare_parameter<double>("publish_rate_hz", 10.0), 1.0);
 
+    params_ = params;
     core_ = std::make_unique<ModeManagerCore>(params);
     builder_ = std::make_unique<TrajectoryBuilder>(TrajectoryBuilderParams{});
 
     output_publisher_ = create_publisher<Trajectory>("output/trajectory", rclcpp::QoS{1});
     status_publisher_ =
       create_publisher<TrajectoryModeState>("~/status", rclcpp::QoS{1}.transient_local());
+    debug_publisher_ = create_publisher<TrajectoryModeDebug>("~/debug", rclcpp::QoS{1});
+    marker_publisher_ = create_publisher<MarkerArray>("~/markers", rclcpp::QoS{1});
+    event_publisher_ =
+      create_publisher<std_msgs::msg::String>("~/events", rclcpp::QoS{10}.transient_local());
 
     onroad_subscription_ = create_subscription<Trajectory>(
       "input/onroad/trajectory", rclcpp::QoS{1},
@@ -176,15 +189,133 @@ private:
 
   void onTimer()
   {
-    const Decision decision = core_->update(
-      now().seconds(), toEgoState(), toSourceState(latest_onroad_),
-      toSourceState(latest_offroad_));
+    const EgoState ego = toEgoState();
+    const SourceState onroad = toSourceState(latest_onroad_);
+    const SourceState offroad = toSourceState(latest_offroad_);
+
+    const Decision decision = core_->update(now().seconds(), ego, onroad, offroad);
+
+    const bool target_is_offroad =
+      core_->transition() == Transition::TO_NAV2 ||
+      (core_->transition() == Transition::NONE && core_->mode() == Mode::NAV2_OFFROAD);
+    const GuardDebug guard = core_->evaluateGuards(ego, onroad, offroad, target_is_offroad);
 
     publishTrajectory(decision.route);
     syncNav2Lifecycle(decision.nav2_should_be_active);
     publishStatus(decision);
+    publishDebug(guard);
+    publishMarkers(decision, guard, ego, target_is_offroad);
+    publishEventIfChanged(decision);
     last_decision_ = decision;
     diagnostics_.force_update();
+  }
+
+  void publishDebug(const GuardDebug & g)
+  {
+    TrajectoryModeDebug msg;
+    msg.stamp = now();
+    msg.target_is_offroad = g.target_is_offroad;
+    msg.onroad_usable = g.onroad_usable;
+    msg.offroad_usable = g.offroad_usable;
+    msg.onroad_age_s = g.onroad_age_s;
+    msg.offroad_age_s = g.offroad_age_s;
+    msg.position_gap_m = g.position_gap_m;
+    msg.yaw_gap_rad = g.yaw_gap_rad;
+    msg.velocity_gap_mps = g.velocity_gap_mps;
+    msg.continuity_ok = g.continuity_ok;
+    msg.max_position_gap_m = params_.max_position_gap_m;
+    msg.max_yaw_gap_rad = params_.max_yaw_gap_rad;
+    msg.max_velocity_step_mps = params_.max_velocity_step_mps;
+    debug_publisher_->publish(msg);
+  }
+
+  void publishMarkers(
+    const Decision & decision, const GuardDebug & guard, const EgoState & ego,
+    const bool target_is_offroad)
+  {
+    MarkerArray markers;
+    const auto stamp = now();
+
+    Marker text;
+    text.header.frame_id = "map";
+    text.header.stamp = stamp;
+    text.ns = "mode";
+    text.id = 0;
+    text.type = Marker::TEXT_VIEW_FACING;
+    text.action = Marker::ADD;
+    text.pose.position.x = ego.valid ? ego.pose.x : 0.0;
+    text.pose.position.y = ego.valid ? ego.pose.y : 0.0;
+    text.pose.position.z = 3.0;
+    text.pose.orientation.w = 1.0;
+    text.scale.z = 1.0;
+    text.color.a = 1.0;
+    text.color.r = 1.0;
+    text.color.g = 1.0;
+    text.color.b = 1.0;
+    std::string label = modeToString(decision.mode);
+    if (decision.transition != Transition::NONE) {
+      label += " [" + transitionToString(decision.transition) + "]";
+    }
+    label += "\nroute: " + routeToString(decision.route);
+    if (!decision.fault_reason.empty()) {
+      label += "\nfault: " + decision.fault_reason;
+    }
+    text.text = label;
+    markers.markers.push_back(text);
+
+    Marker line;
+    line.header.frame_id = "map";
+    line.header.stamp = stamp;
+    line.ns = "continuity_gap";
+    line.id = 1;
+    line.type = Marker::LINE_LIST;
+    line.scale.x = 0.2;
+    line.pose.orientation.w = 1.0;
+    line.color.a = 1.0;
+    line.color.r = guard.continuity_ok ? 0.0F : 1.0F;
+    line.color.g = guard.continuity_ok ? 1.0F : 0.0F;
+    const auto & target_traj = target_is_offroad ? latest_offroad_ : latest_onroad_;
+    if (ego.valid && target_traj && !target_traj->points.empty()) {
+      geometry_msgs::msg::Point a;
+      a.x = ego.pose.x;
+      a.y = ego.pose.y;
+      geometry_msgs::msg::Point b;
+      b.x = target_traj->points.front().pose.position.x;
+      b.y = target_traj->points.front().pose.position.y;
+      line.points.push_back(a);
+      line.points.push_back(b);
+      line.action = Marker::ADD;
+    } else {
+      line.action = Marker::DELETE;
+    }
+    markers.markers.push_back(line);
+
+    marker_publisher_->publish(markers);
+  }
+
+  void publishEventIfChanged(const Decision & decision)
+  {
+    const bool changed = decision.mode != last_decision_.mode ||
+                         decision.transition != last_decision_.transition ||
+                         decision.fault_reason != last_decision_.fault_reason;
+    if (!changed) {
+      return;
+    }
+    std::string event = modeToString(decision.mode);
+    if (decision.transition != Transition::NONE) {
+      event += " [" + transitionToString(decision.transition) + "]";
+    }
+    if (!decision.fault_reason.empty()) {
+      event += " | fault: " + decision.fault_reason;
+    }
+    std_msgs::msg::String msg;
+    msg.data = event;
+    event_publisher_->publish(msg);
+    if (decision.mode == Mode::SAFE_STOP || !decision.fault_reason.empty()) {
+      RCLCPP_WARN(get_logger(), "mode event: %s", event.c_str());
+    } else {
+      RCLCPP_INFO(get_logger(), "mode event: %s", event.c_str());
+    }
   }
 
   void publishTrajectory(const Route route)
@@ -280,6 +411,7 @@ private:
     stat.add("nav2_should_be_active", d.nav2_should_be_active);
   }
 
+  ModeManagerParams params_;
   std::unique_ptr<ModeManagerCore> core_;
   std::unique_ptr<TrajectoryBuilder> builder_;
   size_t min_valid_points_{3};
@@ -293,6 +425,9 @@ private:
 
   rclcpp::Publisher<Trajectory>::SharedPtr output_publisher_;
   rclcpp::Publisher<TrajectoryModeState>::SharedPtr status_publisher_;
+  rclcpp::Publisher<TrajectoryModeDebug>::SharedPtr debug_publisher_;
+  rclcpp::Publisher<MarkerArray>::SharedPtr marker_publisher_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr event_publisher_;
   rclcpp::Subscription<Trajectory>::SharedPtr onroad_subscription_;
   rclcpp::Subscription<Trajectory>::SharedPtr offroad_subscription_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odometry_subscription_;

@@ -31,11 +31,11 @@ nav2_path_to_trajectory_bridge          ~/change_mode service
 
 ```bash
 # Switch to off-road (Nav2)
-ros2 service call /trajectory_mode_manager/change_mode \
+ros2 service call /nav2_offroad/mode_manager/change_mode \
   autoware_nav2_offroad_msgs/srv/ChangeTrajectoryMode "{target_mode: NAV2_OFFROAD, force: false}"
 
 # Switch back to on-road
-ros2 service call /trajectory_mode_manager/change_mode \
+ros2 service call /nav2_offroad/mode_manager/change_mode \
   autoware_nav2_offroad_msgs/srv/ChangeTrajectoryMode "{target_mode: AW_PLANNING, force: false}"
 ```
 
@@ -91,8 +91,8 @@ You do not need to add `<exec_depend>autoware_nav2_offroad</exec_depend>` to `au
 
 ```bash
 ros2 topic hz /planning/trajectory_pre_mux   # on-road planning output
-ros2 topic hz /planning/trajectory            # mux output (same rate in on-road mode)
-ros2 service list | grep set_mode             # /trajectory_mode_mux/set_mode visible
+ros2 topic hz /planning/trajectory            # mode manager output (same rate in on-road mode)
+ros2 service list | grep change_mode          # /nav2_offroad/mode_manager/change_mode visible
 ```
 
 ### Optional (full launch-time mode integration)
@@ -145,7 +145,7 @@ Without these, the diagnostic graph and component state monitor report errors fo
 
 ## Configuration
 
-See **[TUNING.md](TUNING.md)** for a symptom-driven tutorial on what each parameter does and how to tune it.
+See **[TUNING.md](TUNING.md)** for a symptom-driven tutorial on what each parameter does and how to tune it, and **[DEBUGGING.md](DEBUGGING.md)** for the observability topics (`~/status`, `~/debug`, `~/events`, `~/markers`), RViz visualization, and the rosbag record preset.
 
 Config files in `config/`:
 

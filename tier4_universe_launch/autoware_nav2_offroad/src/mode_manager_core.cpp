@@ -65,6 +65,25 @@ Route holdRoute(
 
 ModeManagerCore::ModeManagerCore(ModeManagerParams params) : params_(params) {}
 
+GuardDebug ModeManagerCore::evaluateGuards(
+  const EgoState & ego, const SourceState & onroad, const SourceState & offroad,
+  bool target_is_offroad) const
+{
+  GuardDebug g;
+  g.target_is_offroad = target_is_offroad;
+  g.onroad_usable = usable(onroad, params_);
+  g.offroad_usable = usable(offroad, params_);
+  g.onroad_age_s = onroad.age_s;
+  g.offroad_age_s = offroad.age_s;
+
+  const SourceState & target = target_is_offroad ? offroad : onroad;
+  g.position_gap_m = std::hypot(ego.pose.x - target.first_pose.x, ego.pose.y - target.first_pose.y);
+  g.yaw_gap_rad = std::fabs(normalizeAngle(ego.pose.yaw - target.first_pose.yaw));
+  g.velocity_gap_mps = std::fabs(ego.velocity_mps - target.first_velocity_mps);
+  g.continuity_ok = ego.valid && continuous(ego, target, params_);
+  return g;
+}
+
 bool ModeManagerCore::requestMode(Mode target, bool force, double now_s, std::string & message)
 {
   if (target != Mode::AW_PLANNING && target != Mode::NAV2_OFFROAD) {

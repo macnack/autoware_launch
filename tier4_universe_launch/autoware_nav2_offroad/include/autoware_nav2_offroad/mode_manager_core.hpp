@@ -60,6 +60,21 @@ struct ModeManagerParams
   Mode mode_on_startup{Mode::AW_PLANNING};
 };
 
+// Snapshot of the guard inputs for one evaluation, for debugging why a switch
+// was (or was not) allowed. Not part of the control decision.
+struct GuardDebug
+{
+  bool target_is_offroad{false};
+  bool onroad_usable{false};
+  bool offroad_usable{false};
+  double onroad_age_s{0.0};
+  double offroad_age_s{0.0};
+  double position_gap_m{0.0};
+  double yaw_gap_rad{0.0};
+  double velocity_gap_mps{0.0};
+  bool continuity_ok{false};
+};
+
 struct Decision
 {
   Mode mode{Mode::STANDBY};
@@ -85,6 +100,11 @@ public:
   Decision update(
     double now_s, const EgoState & ego, const SourceState & onroad,
     const SourceState & offroad);
+
+  /// Evaluate the guard inputs for debugging/visualization (does not mutate state).
+  GuardDebug evaluateGuards(
+    const EgoState & ego, const SourceState & onroad, const SourceState & offroad,
+    bool target_is_offroad) const;
 
   Mode mode() const { return mode_; }
   Transition transition() const { return transition_; }

@@ -200,3 +200,26 @@ TEST(ModeManagerCore, RequestModeRejectsUnsupportedTargets)
   EXPECT_FALSE(core.requestMode(Mode::SAFE_STOP, false, 0.0, msg));
   EXPECT_TRUE(core.requestMode(Mode::NAV2_OFFROAD, false, 0.0, msg));
 }
+
+TEST(ModeManagerCore, EvaluateGuardsReportsGapsAgesAndUsability)
+{
+  ModeManagerCore core{ModeManagerParams{}};
+  const auto guard =
+    core.evaluateGuards(egoAt(0.0, 0.0, 0.0), freshValid(), freshValid(10.0, 0.0, 0.0), true);
+  EXPECT_TRUE(guard.target_is_offroad);
+  EXPECT_TRUE(guard.onroad_usable);
+  EXPECT_TRUE(guard.offroad_usable);
+  EXPECT_NEAR(guard.offroad_age_s, 0.0, 1e-6);
+  EXPECT_NEAR(guard.position_gap_m, 10.0, 1e-6);  // offroad first point is 10 m away
+  EXPECT_FALSE(guard.continuity_ok);              // 10 m > default 2 m gap
+}
+
+TEST(ModeManagerCore, EvaluateGuardsContinuousWhenTargetNearEgo)
+{
+  ModeManagerCore core{ModeManagerParams{}};
+  const auto guard =
+    core.evaluateGuards(egoAt(0.0, 0.0, 0.0), freshValid(1.0, 0.0, 0.0), absent(), false);
+  EXPECT_FALSE(guard.target_is_offroad);
+  EXPECT_NEAR(guard.position_gap_m, 1.0, 1e-6);
+  EXPECT_TRUE(guard.continuity_ok);  // 1 m <= 2 m
+}

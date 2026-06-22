@@ -16,9 +16,11 @@ find_package(nav2_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 add_executable(trajectory_mode_mux_node
   src/trajectory_mode_mux_node.cpp
@@ -122,11 +124,14 @@ ament_target_dependencies(trajectory_mode_manager_node
   autoware_nav2_offroad_msgs
   autoware_planning_msgs
   diagnostic_updater
+  geometry_msgs
   nav2_msgs
   nav_msgs
   rclcpp
+  std_msgs
   tf2
   tf2_geometry_msgs
+  visualization_msgs
 )
 
 install(TARGETS

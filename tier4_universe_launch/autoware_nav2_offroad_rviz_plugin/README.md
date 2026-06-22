@@ -8,9 +8,9 @@ Autoware on-road planner at runtime.
 In RViz: **Panels → Add New Panel → autoware::nav2_offroad::rviz_plugin →
 OffroadModePanel**.
 
-The panel shows the current mode (from `/trajectory_mode_manager/status`,
+The panel shows the current mode (from `/nav2_offroad/mode_manager/status`,
 `autoware_nav2_offroad_msgs/msg/TrajectoryModeState`) and provides two buttons
-that call `/trajectory_mode_manager/change_mode`
+that call `/nav2_offroad/mode_manager/change_mode`
 (`autoware_nav2_offroad_msgs/srv/ChangeTrajectoryMode`):
 
 | Button | Requested mode |

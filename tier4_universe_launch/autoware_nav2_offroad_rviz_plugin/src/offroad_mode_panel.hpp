@@ -19,6 +19,7 @@
 #include <rviz_common/panel.hpp>
 #include <rviz_common/ros_integration/ros_node_abstraction_iface.hpp>
 
+#include <autoware_nav2_offroad_msgs/msg/trajectory_mode_debug.hpp>
 #include <autoware_nav2_offroad_msgs/msg/trajectory_mode_state.hpp>
 #include <autoware_nav2_offroad_msgs/srv/change_trajectory_mode.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -45,13 +46,16 @@ private Q_SLOTS:
 private:
   void requestMode(const std::string & target_mode);
   void onStatus(autoware_nav2_offroad_msgs::msg::TrajectoryModeState::ConstSharedPtr msg);
+  void onDebug(autoware_nav2_offroad_msgs::msg::TrajectoryModeDebug::ConstSharedPtr msg);
 
   QPushButton * offroad_button_;
   QPushButton * onroad_button_;
   QLabel * status_label_;
+  QLabel * guard_label_;
 
   rclcpp::Client<autoware_nav2_offroad_msgs::srv::ChangeTrajectoryMode>::SharedPtr client_;
   rclcpp::Subscription<autoware_nav2_offroad_msgs::msg::TrajectoryModeState>::SharedPtr status_sub_;
+  rclcpp::Subscription<autoware_nav2_offroad_msgs::msg::TrajectoryModeDebug>::SharedPtr debug_sub_;
 
 protected:
   rviz_common::ros_integration::RosNodeAbstractionIface::WeakPtr rviz_ros_node_;

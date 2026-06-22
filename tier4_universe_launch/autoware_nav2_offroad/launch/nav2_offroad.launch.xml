@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="use_sim_time" default="false"/>
+  <arg name="mode_manager_prefix" default="/nav2_offroad/mode_manager" description="prefix for trajectory_mode_manager topics/services"/>
   <arg name="nav2_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_offroad.param.yaml"/>
   <arg name="bridge_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_path_to_trajectory_bridge.param.yaml"/>
   <arg name="free_map_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/free_map_publisher.param.yaml"/>
@@ -54,6 +55,11 @@
     <remap from="input/onroad/trajectory"  to="/planning/trajectory_pre_mux"/>
     <remap from="input/offroad/trajectory" to="/nav2_offroad/planning/trajectory"/>
     <remap from="output/trajectory"        to="/planning/trajectory"/>
+    <remap from="~/status"                 to="$(var mode_manager_prefix)/status"/>
+    <remap from="~/debug"                  to="$(var mode_manager_prefix)/debug"/>
+    <remap from="~/events"                 to="$(var mode_manager_prefix)/events"/>
+    <remap from="~/markers"                to="$(var mode_manager_prefix)/markers"/>
+    <remap from="~/change_mode"            to="$(var mode_manager_prefix)/change_mode"/>
     <param name="lifecycle_manager_service" value="/lifecycle_manager_navigation/manage_nodes"/>
     <!-- Nav2 is kept hot by lifecycle_manager autostart for now; set true to let
          the manager deactivate Nav2 on-demand in on-road mode (see MODE_MANAGER_DESIGN.md). -->

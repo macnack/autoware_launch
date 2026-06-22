@@ -19,6 +19,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+#include <cstdio>
 #include <memory>
 #include <string>
 
@@ -26,11 +27,13 @@ namespace autoware::nav2_offroad::rviz_plugin
 {
 namespace
 {
-constexpr char kChangeModeService[] = "/trajectory_mode_manager/change_mode";
-constexpr char kStatusTopic[] = "/trajectory_mode_manager/status";
+constexpr char kChangeModeService[] = "/nav2_offroad/mode_manager/change_mode";
+constexpr char kStatusTopic[] = "/nav2_offroad/mode_manager/status";
+constexpr char kDebugTopic[] = "/nav2_offroad/mode_manager/debug";
 }  // namespace
 
 using TrajectoryModeState = autoware_nav2_offroad_msgs::msg::TrajectoryModeState;
+using TrajectoryModeDebug = autoware_nav2_offroad_msgs::msg::TrajectoryModeDebug;
 using ChangeTrajectoryMode = autoware_nav2_offroad_msgs::srv::ChangeTrajectoryMode;
 
 OffroadModePanel::OffroadModePanel(QWidget * parent) : rviz_common::Panel(parent)
@@ -38,6 +41,8 @@ OffroadModePanel::OffroadModePanel(QWidget * parent) : rviz_common::Panel(parent
   offroad_button_ = new QPushButton("Activate OFF-ROAD (Nav2)");
   onroad_button_ = new QPushButton("Activate ON-ROAD (Autoware)");
   status_label_ = new QLabel("mode: (unknown)");
+  guard_label_ = new QLabel("guards: (waiting for ~/debug)");
+  guard_label_->setStyleSheet("font-family: monospace;");
 
   auto * button_layout = new QHBoxLayout;
   button_layout->addWidget(offroad_button_);
@@ -45,6 +50,7 @@ OffroadModePanel::OffroadModePanel(QWidget * parent) : rviz_common::Panel(parent
 
   auto * layout = new QVBoxLayout(this);
   layout->addWidget(status_label_);
+  layout->addWidget(guard_label_);
   layout->addLayout(button_layout);
   setLayout(layout);
 
@@ -62,6 +68,9 @@ void OffroadModePanel::onInitialize()
   status_sub_ = node->create_subscription<TrajectoryModeState>(
     kStatusTopic, rclcpp::QoS{1}.transient_local(),
     std::bind(&OffroadModePanel::onStatus, this, std::placeholders::_1));
+  debug_sub_ = node->create_subscription<TrajectoryModeDebug>(
+    kDebugTopic, rclcpp::QoS{1},
+    std::bind(&OffroadModePanel::onDebug, this, std::placeholders::_1));
 }
 
 void OffroadModePanel::onClickOffroad()
@@ -109,6 +118,26 @@ void OffroadModePanel::onStatus(TrajectoryModeState::ConstSharedPtr msg)
     text += "  fault: " + msg->fault_reason;
   }
   status_label_->setText(QString::fromStdString(text));
+}
+
+void OffroadModePanel::onDebug(TrajectoryModeDebug::ConstSharedPtr msg)
+{
+  char buf[320];
+  std::snprintf(
+    buf, sizeof(buf),
+    "target: %s\n"
+    "pos %.2f / %.2f m  %s\n"
+    "yaw %.2f / %.2f rad  %s\n"
+    "vel %.2f / %.2f m/s  %s\n"
+    "onroad %s (%.2fs)   offroad %s (%.2fs)",
+    msg->target_is_offroad ? "offroad" : "onroad", msg->position_gap_m, msg->max_position_gap_m,
+    msg->position_gap_m <= msg->max_position_gap_m ? "OK" : "X", msg->yaw_gap_rad,
+    msg->max_yaw_gap_rad, msg->yaw_gap_rad <= msg->max_yaw_gap_rad ? "OK" : "X",
+    msg->velocity_gap_mps, msg->max_velocity_step_mps,
+    msg->velocity_gap_mps <= msg->max_velocity_step_mps ? "OK" : "X",
+    msg->onroad_usable ? "live" : "--", msg->onroad_age_s, msg->offroad_usable ? "live" : "--",
+    msg->offroad_age_s);
+  guard_label_->setText(QString::fromUtf8(buf));
 }
 
 }  // namespace autoware::nav2_offroad::rviz_plugin
