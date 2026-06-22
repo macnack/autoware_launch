@@ -10,10 +10,10 @@ on-road planning
         |
         v
 /planning/trajectory_pre_mux ──┐
-                                ├─► trajectory_mode_mux ──► /planning/trajectory ──► trajectory_follower
+                                ├─► trajectory_mode_manager ──► /planning/trajectory ──► trajectory_follower
 /nav2_offroad/planning/trajectory ─┘          ^
         ^                                      |
-nav2_path_to_trajectory_bridge          ~/set_mode service
+nav2_path_to_trajectory_bridge          ~/change_mode service
         ^
     Nav2 planner
 ```
@@ -24,16 +24,18 @@ nav2_path_to_trajectory_bridge          ~/set_mode service
 |------|-----------|-------------|
 | `free_map_publisher` | `free_map_publisher_node` | Publishes a fully-free occupancy grid so Nav2 can plan without a sensor-based costmap |
 | `nav2_path_to_trajectory_bridge` | `nav2_path_to_trajectory_bridge_node` | Calls Nav2 `ComputePathToPose` + `SmoothPath`, converts the result to an Autoware `Trajectory` |
-| `trajectory_mode_mux` | `trajectory_mode_mux_node` | Routes either the on-road or off-road trajectory to `/planning/trajectory` based on current mode |
+| `trajectory_mode_manager` | `trajectory_mode_manager_node` | Owns `/planning/trajectory`; routes on-road or off-road trajectory via a guarded mode state machine with safe-stop fallback. Exposes `~/change_mode` + `~/status` (see [MODE_MANAGER_DESIGN.md](MODE_MANAGER_DESIGN.md)). Supersedes the legacy `trajectory_mode_mux_node`. |
 
 ## Switching modes at runtime
 
 ```bash
 # Switch to off-road (Nav2)
-ros2 service call /trajectory_mode_mux/set_mode std_srvs/srv/SetBool "{data: true}"
+ros2 service call /trajectory_mode_manager/change_mode \
+  autoware_nav2_offroad_msgs/srv/ChangeTrajectoryMode "{target_mode: NAV2_OFFROAD, force: false}"
 
 # Switch back to on-road
-ros2 service call /trajectory_mode_mux/set_mode std_srvs/srv/SetBool "{data: false}"
+ros2 service call /trajectory_mode_manager/change_mode \
+  autoware_nav2_offroad_msgs/srv/ChangeTrajectoryMode "{target_mode: AW_PLANNING, force: false}"
 ```
 
 Default mode on startup: **on-road**.

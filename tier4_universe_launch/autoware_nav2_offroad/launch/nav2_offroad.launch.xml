@@ -32,10 +32,14 @@
     <param name="use_sim_time" value="$(var use_sim_time)"/>
   </node>
 
-  <node pkg="autoware_nav2_offroad" exec="trajectory_mode_mux_node" name="trajectory_mode_mux" output="screen">
+  <node pkg="autoware_nav2_offroad" exec="trajectory_mode_manager_node" name="trajectory_mode_manager" output="screen">
     <remap from="input/onroad/trajectory"  to="/planning/trajectory_pre_mux"/>
     <remap from="input/offroad/trajectory" to="/nav2_offroad/planning/trajectory"/>
     <remap from="output/trajectory"        to="/planning/trajectory"/>
+    <param name="lifecycle_manager_service" value="/lifecycle_manager_navigation/manage_nodes"/>
+    <!-- Nav2 is kept hot by lifecycle_manager autostart for now; set true to let
+         the manager deactivate Nav2 on-demand in on-road mode (see MODE_MANAGER_DESIGN.md). -->
+    <param name="manage_nav2_lifecycle" value="false"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
   </node>
 </launch>

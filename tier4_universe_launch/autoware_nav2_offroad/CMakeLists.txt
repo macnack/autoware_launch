@@ -7,7 +7,9 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(autoware_adapi_v1_msgs REQUIRED)
+find_package(autoware_nav2_offroad_msgs REQUIRED)
 find_package(autoware_planning_msgs REQUIRED)
+find_package(diagnostic_updater REQUIRED)
 find_package(autoware_vehicle_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav2_msgs REQUIRED)
@@ -46,6 +48,14 @@ ament_target_dependencies(autoware_nav2_offroad_trajectory_builder
   tf2_geometry_msgs
 )
 
+add_library(autoware_nav2_offroad_mode_manager_core
+  src/mode_manager_core.cpp
+)
+target_include_directories(autoware_nav2_offroad_mode_manager_core PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
 add_executable(free_map_publisher_node
   src/free_map_publisher_node.cpp
 )
@@ -76,10 +86,33 @@ ament_target_dependencies(nav2_path_to_trajectory_bridge_node
   tf2_geometry_msgs
 )
 
+add_executable(trajectory_mode_manager_node
+  src/trajectory_mode_manager_node.cpp
+)
+target_include_directories(trajectory_mode_manager_node PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(trajectory_mode_manager_node
+  autoware_nav2_offroad_mode_manager_core
+  autoware_nav2_offroad_trajectory_builder
+)
+ament_target_dependencies(trajectory_mode_manager_node
+  autoware_nav2_offroad_msgs
+  autoware_planning_msgs
+  diagnostic_updater
+  nav2_msgs
+  nav_msgs
+  rclcpp
+  tf2
+  tf2_geometry_msgs
+)
+
 install(TARGETS
+  autoware_nav2_offroad_mode_manager_core
   autoware_nav2_offroad_trajectory_builder
   free_map_publisher_node
   nav2_path_to_trajectory_bridge_node
+  trajectory_mode_manager_node
   trajectory_mode_mux_node
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -108,6 +141,18 @@ if(BUILD_TESTING)
       autoware_nav2_offroad_trajectory_builder
     )
     target_include_directories(test_trajectory_builder PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+  endif()
+
+  ament_add_gtest(test_mode_manager_core
+    test/test_mode_manager_core.cpp
+  )
+  if(TARGET test_mode_manager_core)
+    target_link_libraries(test_mode_manager_core
+      autoware_nav2_offroad_mode_manager_core
+    )
+    target_include_directories(test_mode_manager_core PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
   endif()
