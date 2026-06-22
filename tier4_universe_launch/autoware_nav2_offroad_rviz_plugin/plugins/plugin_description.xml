@@ -1,0 +1,7 @@
+<library path="autoware_nav2_offroad_rviz_plugin">
+  <class
+    type="autoware::nav2_offroad::rviz_plugin::OffroadModePanel"
+    base_class_type="rviz_common::Panel">
+    <description>Activate the Nav2 off-road planner or the Autoware on-road planner.</description>
+  </class>
+</library>
