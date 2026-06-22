@@ -22,7 +22,8 @@ nav2_path_to_trajectory_bridge          ~/change_mode service
 
 | Node | Executable | Description |
 |------|-----------|-------------|
-| `free_map_publisher` | `free_map_publisher_node` | Publishes a fully-free occupancy grid so Nav2 can plan without a sensor-based costmap |
+| `free_map_publisher` | `free_map_publisher_node` | Publishes a fully-free occupancy grid so Nav2 can plan without a sensor-based costmap (default occupancy source) |
+| `perception_occupancy_relay` | `perception_occupancy_relay_node` | Relays the real Autoware perception occupancy grid into the latched Nav2 costmap input; selected with `occupancy_grid_source:=perception` |
 | `nav2_path_to_trajectory_bridge` | `nav2_path_to_trajectory_bridge_node` | Calls Nav2 `ComputePathToPose` + `SmoothPath`, converts the result to an Autoware `Trajectory` |
 | `trajectory_mode_manager` | `trajectory_mode_manager_node` | Owns `/planning/trajectory`; routes on-road or off-road trajectory via a guarded mode state machine with safe-stop fallback. Exposes `~/change_mode` + `~/status` (see [MODE_MANAGER_DESIGN.md](MODE_MANAGER_DESIGN.md)). Supersedes the legacy `trajectory_mode_mux_node`. |
 
@@ -144,6 +145,8 @@ Without these, the diagnostic graph and component state monitor report errors fo
 
 ## Configuration
 
+See **[TUNING.md](TUNING.md)** for a symptom-driven tutorial on what each parameter does and how to tune it.
+
 Config files in `config/`:
 
 | File | Description |
@@ -151,6 +154,7 @@ Config files in `config/`:
 | `nav2_offroad.param.yaml` | Nav2 planner and smoother parameters |
 | `nav2_path_to_trajectory_bridge.param.yaml` | Bridge topics, speeds, and timeouts |
 | `free_map_publisher.param.yaml` | Free-space map resolution and frame |
+| `perception_occupancy_relay.param.yaml` | Perception occupancy relay topics and `unknown_as_free` |
 | `vehicle_cmd_gate_nav2_offroad.param.yaml` | Relaxed vehicle_cmd_gate limits for off-road speeds |
 
 Key bridge parameters:

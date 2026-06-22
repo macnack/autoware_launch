@@ -56,10 +56,32 @@ target_include_directories(autoware_nav2_offroad_mode_manager_core PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 
+add_library(autoware_nav2_offroad_occupancy_grid_relay
+  src/occupancy_grid_relay.cpp
+)
+target_include_directories(autoware_nav2_offroad_occupancy_grid_relay PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
 add_executable(free_map_publisher_node
   src/free_map_publisher_node.cpp
 )
 ament_target_dependencies(free_map_publisher_node
+  nav_msgs
+  rclcpp
+)
+
+add_executable(perception_occupancy_relay_node
+  src/perception_occupancy_relay_node.cpp
+)
+target_link_libraries(perception_occupancy_relay_node
+  autoware_nav2_offroad_occupancy_grid_relay
+)
+target_include_directories(perception_occupancy_relay_node PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+ament_target_dependencies(perception_occupancy_relay_node
   nav_msgs
   rclcpp
 )
@@ -109,9 +131,11 @@ ament_target_dependencies(trajectory_mode_manager_node
 
 install(TARGETS
   autoware_nav2_offroad_mode_manager_core
+  autoware_nav2_offroad_occupancy_grid_relay
   autoware_nav2_offroad_trajectory_builder
   free_map_publisher_node
   nav2_path_to_trajectory_bridge_node
+  perception_occupancy_relay_node
   trajectory_mode_manager_node
   trajectory_mode_mux_node
   DESTINATION lib/${PROJECT_NAME}
@@ -153,6 +177,18 @@ if(BUILD_TESTING)
       autoware_nav2_offroad_mode_manager_core
     )
     target_include_directories(test_mode_manager_core PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+  endif()
+
+  ament_add_gtest(test_occupancy_grid_relay
+    test/test_occupancy_grid_relay.cpp
+  )
+  if(TARGET test_occupancy_grid_relay)
+    target_link_libraries(test_occupancy_grid_relay
+      autoware_nav2_offroad_occupancy_grid_relay
+    )
+    target_include_directories(test_occupancy_grid_relay PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
   endif()

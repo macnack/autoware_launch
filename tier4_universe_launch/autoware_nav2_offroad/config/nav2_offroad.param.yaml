@@ -23,7 +23,7 @@ global_costmap:
       plugins: ["static_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
-        map_topic: /perception/occupancy_grid_map/map
+        map_topic: /nav2_offroad/costmap/occupancy_grid
         map_subscribe_transient_local: true
         subscribe_to_updates: false
       always_send_full_costmap: true
