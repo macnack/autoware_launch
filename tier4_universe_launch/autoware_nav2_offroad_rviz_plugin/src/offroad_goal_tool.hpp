@@ -19,6 +19,7 @@
 #include <rviz_default_plugins/tools/pose/pose_tool.hpp>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 
 namespace rviz_common::properties
 {
@@ -45,9 +46,19 @@ private Q_SLOTS:
   void updateTopic();
 
 private:
+  void publishFootprint(double x, double y, double theta);
+
   rviz_common::properties::StringProperty * topic_property_;
+  rviz_common::properties::StringProperty * footprint_topic_property_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr footprint_publisher_;
   rclcpp::Clock::SharedPtr clock_;
+
+  // Footprint extents relative to base_link (Autoware: base_link at rear axle).
+  double front_{3.79};
+  double rear_{-1.1};
+  double left_{0.95};
+  double right_{-0.95};
 };
 }  // namespace autoware::nav2_offroad::rviz_plugin
 
