@@ -1,7 +1,35 @@
 # Design: OFFROAD as an `autoware_scenario_selector` scenario (Option C)
 
-Status: **Draft for review** · Supersedes the standalone `trajectory_mode_manager`
-once complete. See [MODE_MANAGER_DESIGN.md](MODE_MANAGER_DESIGN.md) §10 for context.
+Status: **Implemented (v1)** · Supersedes the standalone `trajectory_mode_manager`.
+See [MODE_MANAGER_DESIGN.md](MODE_MANAGER_DESIGN.md) §10 for context.
+
+## Status / how to run
+
+Implemented across three repos (trigger = **off-road goal active**):
+
+- `autoware_internal_msgs`: `Scenario.msg` += `OFFROAD`.
+- `autoware_scenario_selector`: OFFROAD trajectory routing + goal-active selection
+  (`enable_offroad`, `th_offroad_goal_reached_distance_m`).
+- `autoware_launch`: `navigation_mode:=nav2_offroad` threads `enable_offroad` to the
+  selector; the Nav2 bridge feeds `input/offroad/trajectory`.
+
+**Reconciliation done:** `planning_validator` now outputs the stock
+`/planning/trajectory` (arg `planning_validator_output_trajectory`), and the legacy
+`trajectory_mode_manager` is **opt-in** (`launch_trajectory_mode_manager:=false` by
+default in `nav2_offroad.launch.xml`). So off-road flows
+`Nav2 bridge → scenario_selector(OFFROAD) → velocity_smoother → planning_validator
+→ /planning/trajectory` with no mux conflict. Run:
+
+```bash
+ros2 launch autoware_launch planning_simulator.launch.xml navigation_mode:=nav2_offroad map_path:=...
+# then publish an off-road goal:
+ros2 topic pub --once /planning/offroad_goal geometry_msgs/msg/PoseStamped "{header: {frame_id: map}, ...}"
+```
+
+The legacy standalone mux path remains available via
+`launch_trajectory_mode_manager:=true` + `planning_validator_output_trajectory:=/planning/trajectory_pre_mux`.
+Note: the package wrapper `planning_simulator.launch.xml` (always-on mux) is
+superseded by the `navigation_mode` entry point above.
 
 This folds off-road (Nav2) navigation into `autoware_scenario_selector` so it
 becomes a first-class scenario alongside `LANEDRIVING` / `PARKING`, inheriting the

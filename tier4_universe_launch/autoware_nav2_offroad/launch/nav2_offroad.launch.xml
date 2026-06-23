@@ -2,6 +2,10 @@
 <launch>
   <arg name="use_sim_time" default="false"/>
   <arg name="mode_manager_prefix" default="/nav2_offroad/mode_manager" description="prefix for trajectory_mode_manager topics/services"/>
+  <!-- Off-road selection is handled by autoware_scenario_selector (OFFROAD scenario).
+       Set true only for the legacy standalone mux path (also set the planning_validator
+       output to /planning/trajectory_pre_mux). -->
+  <arg name="launch_trajectory_mode_manager" default="false"/>
   <arg name="nav2_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_offroad.param.yaml"/>
   <arg name="bridge_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_path_to_trajectory_bridge.param.yaml"/>
   <arg name="free_map_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/free_map_publisher.param.yaml"/>
@@ -51,7 +55,8 @@
     <param name="use_sim_time" value="$(var use_sim_time)"/>
   </node>
 
-  <node pkg="autoware_nav2_offroad" exec="trajectory_mode_manager_node" name="trajectory_mode_manager" output="screen">
+  <node pkg="autoware_nav2_offroad" exec="trajectory_mode_manager_node" name="trajectory_mode_manager" output="screen"
+        if="$(var launch_trajectory_mode_manager)">
     <remap from="input/onroad/trajectory"  to="/planning/trajectory_pre_mux"/>
     <remap from="input/offroad/trajectory" to="/nav2_offroad/planning/trajectory"/>
     <remap from="output/trajectory"        to="/planning/trajectory"/>
