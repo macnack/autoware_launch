@@ -17,6 +17,9 @@
   <arg name="vehicle_model" default="sample_vehicle"/>
   <arg name="sensor_model" default="sample_sensor_kit"/>
   <arg name="data_path" default="$(env HOME)/autoware_data"/>
+  <!-- This wrapper is the off-road entry point: default to nav2_offroad so the
+       gated Nav2 stack + scenario_selector OFFROAD are enabled by the inner launch. -->
+  <arg name="navigation_mode" default="nav2_offroad" description="autoware | nav2_offroad"/>
 
   <!-- Module presets -->
   <arg name="planning_module_preset" default="default"/>
@@ -59,6 +62,7 @@
     <arg name="data_path" value="$(var data_path)"/>
     <arg name="planning_module_preset" value="$(var planning_module_preset)"/>
     <arg name="control_module_preset" value="$(var control_module_preset)"/>
+    <arg name="navigation_mode" value="$(var navigation_mode)"/>
     <arg name="lanelet2_map_file" value="$(var lanelet2_map_file)"/>
     <arg name="pointcloud_map_file" value="$(var pointcloud_map_file)"/>
     <arg name="launch_dummy_doors" value="$(var launch_dummy_doors)"/>
@@ -80,8 +84,7 @@
     <arg name="localization_sim_mode" value="$(var localization_sim_mode)"/>
   </include>
 
-  <!-- Nav2 off-road stack: planner + bridge + trajectory mux -->
-  <include file="$(find-pkg-share autoware_nav2_offroad)/launch/nav2_offroad.launch.xml">
-    <arg name="use_sim_time" value="$(var use_sim_time)"/>
-  </include>
+  <!-- The Nav2 off-road stack is launched by the inner planning_simulator
+       (gated on navigation_mode==nav2_offroad), so it is NOT included again here
+       to avoid a duplicate /planner_server. -->
 </launch>

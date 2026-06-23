@@ -30,19 +30,23 @@ namespace
 constexpr char kChangeModeService[] = "/nav2_offroad/mode_manager/change_mode";
 constexpr char kStatusTopic[] = "/nav2_offroad/mode_manager/status";
 constexpr char kDebugTopic[] = "/nav2_offroad/mode_manager/debug";
+constexpr char kLifecycleService[] = "/lifecycle_manager_navigation/manage_nodes";
 }  // namespace
 
 using TrajectoryModeState = autoware_nav2_offroad_msgs::msg::TrajectoryModeState;
 using TrajectoryModeDebug = autoware_nav2_offroad_msgs::msg::TrajectoryModeDebug;
 using ChangeTrajectoryMode = autoware_nav2_offroad_msgs::srv::ChangeTrajectoryMode;
+using ManageLifecycleNodes = nav2_msgs::srv::ManageLifecycleNodes;
 
 OffroadModePanel::OffroadModePanel(QWidget * parent) : rviz_common::Panel(parent)
 {
   offroad_button_ = new QPushButton("Activate OFF-ROAD (Nav2)");
   onroad_button_ = new QPushButton("Activate ON-ROAD (Autoware)");
+  restart_nav2_button_ = new QPushButton("Restart Nav2 stack");
   status_label_ = new QLabel("mode: (unknown)");
   guard_label_ = new QLabel("guards: (waiting for ~/debug)");
   guard_label_->setStyleSheet("font-family: monospace;");
+  nav2_label_ = new QLabel("nav2: (idle)");
 
   auto * button_layout = new QHBoxLayout;
   button_layout->addWidget(offroad_button_);
@@ -52,10 +56,13 @@ OffroadModePanel::OffroadModePanel(QWidget * parent) : rviz_common::Panel(parent
   layout->addWidget(status_label_);
   layout->addWidget(guard_label_);
   layout->addLayout(button_layout);
+  layout->addWidget(restart_nav2_button_);
+  layout->addWidget(nav2_label_);
   setLayout(layout);
 
   connect(offroad_button_, &QPushButton::clicked, this, &OffroadModePanel::onClickOffroad);
   connect(onroad_button_, &QPushButton::clicked, this, &OffroadModePanel::onClickOnroad);
+  connect(restart_nav2_button_, &QPushButton::clicked, this, &OffroadModePanel::onRestartNav2);
 }
 
 void OffroadModePanel::onInitialize()
@@ -64,6 +71,7 @@ void OffroadModePanel::onInitialize()
   auto node = rviz_ros_node_.lock()->get_raw_node();
 
   client_ = node->create_client<ChangeTrajectoryMode>(kChangeModeService);
+  lifecycle_client_ = node->create_client<ManageLifecycleNodes>(kLifecycleService);
 
   status_sub_ = node->create_subscription<TrajectoryModeState>(
     kStatusTopic, rclcpp::QoS{1}.transient_local(),
@@ -138,6 +146,32 @@ void OffroadModePanel::onDebug(TrajectoryModeDebug::ConstSharedPtr msg)
     msg->onroad_usable ? "live" : "--", msg->onroad_age_s, msg->offroad_usable ? "live" : "--",
     msg->offroad_age_s);
   guard_label_->setText(QString::fromUtf8(buf));
+}
+
+void OffroadModePanel::onRestartNav2()
+{
+  if (!lifecycle_client_ || !lifecycle_client_->service_is_ready()) {
+    nav2_label_->setText(
+      QString::fromStdString("nav2: lifecycle service unavailable (" + std::string(kLifecycleService) + ")"));
+    return;
+  }
+
+  // RESET then STARTUP so this recovers from any state (active, inactive, or an
+  // aborted bringup) — a plain STARTUP fails if the nodes are already active.
+  nav2_label_->setText("nav2: resetting...");
+  auto reset_request = std::make_shared<ManageLifecycleNodes::Request>();
+  reset_request->command = ManageLifecycleNodes::Request::RESET;
+  lifecycle_client_->async_send_request(
+    reset_request, [this](rclcpp::Client<ManageLifecycleNodes>::SharedFuture) {
+      nav2_label_->setText("nav2: starting up...");
+      auto startup_request = std::make_shared<ManageLifecycleNodes::Request>();
+      startup_request->command = ManageLifecycleNodes::Request::STARTUP;
+      lifecycle_client_->async_send_request(
+        startup_request, [this](rclcpp::Client<ManageLifecycleNodes>::SharedFuture future) {
+          const bool ok = future.get()->success;
+          nav2_label_->setText(ok ? "nav2: active" : "nav2: startup FAILED (set initial pose first)");
+        });
+    });
 }
 
 }  // namespace autoware::nav2_offroad::rviz_plugin

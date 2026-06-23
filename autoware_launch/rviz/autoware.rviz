@@ -22,6 +22,8 @@ Panels:
     Name: AutowareStatePanel
   - Class: rviz_plugins/ControlModeDisplay
     Name: ControlModeDisplay
+  - Class: autoware::nav2_offroad::rviz_plugin::OffroadModePanel
+    Name: OffroadModePanel
 Visualization Manager:
   Class: ""
   Displays:

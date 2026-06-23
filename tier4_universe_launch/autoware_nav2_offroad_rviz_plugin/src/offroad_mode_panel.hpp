@@ -22,6 +22,7 @@
 #include <autoware_nav2_offroad_msgs/msg/trajectory_mode_debug.hpp>
 #include <autoware_nav2_offroad_msgs/msg/trajectory_mode_state.hpp>
 #include <autoware_nav2_offroad_msgs/srv/change_trajectory_mode.hpp>
+#include <nav2_msgs/srv/manage_lifecycle_nodes.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <string>
@@ -42,6 +43,7 @@ public:
 private Q_SLOTS:
   void onClickOffroad();
   void onClickOnroad();
+  void onRestartNav2();
 
 private:
   void requestMode(const std::string & target_mode);
@@ -50,10 +52,13 @@ private:
 
   QPushButton * offroad_button_;
   QPushButton * onroad_button_;
+  QPushButton * restart_nav2_button_;
   QLabel * status_label_;
   QLabel * guard_label_;
+  QLabel * nav2_label_;
 
   rclcpp::Client<autoware_nav2_offroad_msgs::srv::ChangeTrajectoryMode>::SharedPtr client_;
+  rclcpp::Client<nav2_msgs::srv::ManageLifecycleNodes>::SharedPtr lifecycle_client_;
   rclcpp::Subscription<autoware_nav2_offroad_msgs::msg::TrajectoryModeState>::SharedPtr status_sub_;
   rclcpp::Subscription<autoware_nav2_offroad_msgs::msg::TrajectoryModeDebug>::SharedPtr debug_sub_;
 
