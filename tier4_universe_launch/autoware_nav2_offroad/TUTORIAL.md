@@ -22,100 +22,87 @@ Also lists what is still missing for a full deployment.
 - A costmap source — `free` (default, no sensors) or `perception` (needs a LiDAR +
   Autoware perception; see [README](README.md) and `occupancy_grid_source`).
 
-## 1. Launch
+## 1. Launch the simulator in off-road mode
 
-**Option A — quick (simulator, runtime switch).** Both stacks run; switch at runtime.
-
-```bash
-ros2 launch autoware_nav2_offroad planning_simulator.launch.xml \
-  map_path:=$HOME/autoware_map/sample-map-planning \
-  vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
-```
-
-**Option B — launch-time off-road mode.** Also disables road-only nodes and swaps
-the diagnostics/component-monitor configs (requires the launch-time integration on
-this branch):
+Off-road is the `OFFROAD` scenario of `autoware_scenario_selector`, enabled by
+`navigation_mode:=nav2_offroad`:
 
 ```bash
 ros2 launch autoware_launch planning_simulator.launch.xml \
   navigation_mode:=nav2_offroad \
+  initial_engage_state:=true \
   map_path:=$HOME/autoware_map/sample-map-planning \
   vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
 ```
 
-To use the real perception occupancy grid instead of the free map, add
-`occupancy_grid_source:=perception` to the `nav2_offroad` launch (or set it via the
-wrapper).
+This brings up the planning_simulator plus the Nav2 off-road stack (planner +
+smoother + bridge), wires the Nav2 bridge into `scenario_selector`, and uses the
+**free occupancy map by default** (no sensors needed — ideal for sim). RViz opens
+automatically.
 
-## 2. Switch into off-road mode
+> For the real perception occupancy grid add `occupancy_grid_source:=perception`
+> — that needs a LiDAR/perception pipeline, which is **not** present in
+> `planning_simulation`, so keep the default `free` in sim.
 
-The manager starts in `AW_PLANNING` (param `mode_on_startup`). Switch it to
-off-road by any of:
+## 2. Set the initial pose
 
-- **RViz panel** — add *Panels → Add New Panel → OffroadModePanel*, click
-  **Activate OFF-ROAD (Nav2)**.
-- **Service**:
+In RViz, click **2D Pose Estimate** and place the vehicle on the map so
+localization publishes an ego pose on `/localization/kinematic_state`. With
+`initial_engage_state:=true` the vehicle is auto-engaged (operation mode
+AUTONOMOUS); otherwise engage via the RViz AutowareStatePanel / AD API.
 
-  ```bash
-  ros2 service call /nav2_offroad/mode_manager/change_mode \
-    autoware_nav2_offroad_msgs/srv/ChangeTrajectoryMode \
-    "{target_mode: NAV2_OFFROAD, force: false}"
-  ```
+## 3. Send an off-road goal — this activates OFFROAD
 
-- **Start in off-road**: launch the manager with `mode_on_startup:=NAV2_OFFROAD`.
-
-Confirm with `ros2 topic echo /nav2_offroad/mode_manager/status` → `current_mode:
-NAV2_OFFROAD`. (If it refuses, check `~/debug` — see [DEBUGGING.md](DEBUGGING.md).)
-
-## 3. Send an off-road goal
-
-The off-road goal is a separate topic from the on-road mission planner goal:
+Publish a goal on the dedicated off-road topic, in the `map` frame (pick a point
+on the map; with the free costmap any reachable point works):
 
 ```bash
 ros2 topic pub --once /planning/offroad_goal geometry_msgs/msg/PoseStamped \
   "{header: {frame_id: map}, pose: {position: {x: 30.0, y: 10.0, z: 0.0}, orientation: {w: 1.0}}}"
 ```
 
-The bridge calls Nav2 `ComputePathToPose` + `SmoothPath`, converts the path to an
-Autoware `Trajectory`, and publishes it; the manager routes it to
-`/planning/trajectory`.
+`scenario_selector` switches to the **OFFROAD** scenario while the goal is set and
+unreached. The Nav2 bridge plans a path (`ComputePathToPose` + `SmoothPath`) and
+publishes a trajectory, which flows:
 
-> There is **no RViz goal tool wired to `/planning/offroad_goal` yet** — set the
-> goal with the command above, or remap the RViz "2D Goal Pose" tool to that topic
-> in your RViz config. (Convenience gap, see §6.)
-
-## 4. Engage (make the vehicle move)
-
-Autoware must be engaged (operation mode AUTONOMOUS) for the controller to act:
-
-- In the simulator, launch with `initial_engage_state:=true` (auto-engages), or
-- engage via the AD API / HMI, or
-- let the bridge do it: set `force_engage:=true` and/or `auto_accept_start:=true`
-  in `nav2_path_to_trajectory_bridge.param.yaml` (defaults are `false` — leave off
-  on a real vehicle unless you understand the implications).
-
-## 5. Verify / debug
-
-```bash
-ros2 topic echo /nav2_offroad/mode_manager/status     # mode = NAV2_OFFROAD, route = offroad
-ros2 topic echo /nav2_offroad/mode_manager/debug      # guard values
-ros2 topic hz   /planning/trajectory                  # output flowing
+```
+Nav2 bridge → scenario_selector(OFFROAD) → velocity_smoother → planning_validator → /planning/trajectory
 ```
 
-In RViz: the `~/markers` overlay shows the mode and the green/red continuity line;
-display `/nav2_offroad/planning/trajectory` and the costmap. Full guide in
-[DEBUGGING.md](DEBUGGING.md). Record a run with
-`ros2 launch autoware_nav2_offroad debug_record.launch.xml`.
+The vehicle drives to the goal; on arrival (reached + stopped) `scenario_selector`
+clears OFFROAD and falls back to lane/parking selection.
 
-## 6. Switch back to on-road
+> No RViz goal tool is wired to `/planning/offroad_goal` yet — use the command
+> above, or remap the RViz "2D Goal Pose" tool to that topic in your RViz config.
+
+## 4. Verify
 
 ```bash
-ros2 service call /nav2_offroad/mode_manager/change_mode \
-  autoware_nav2_offroad_msgs/srv/ChangeTrajectoryMode "{target_mode: AW_PLANNING, force: false}"
+ros2 topic echo --once /planning/scenario_planning/scenario   # current_scenario: OffRoad
+ros2 topic hz   /planning/trajectory                          # output flowing
+ros2 topic echo --once /nav2_offroad/planning/trajectory      # Nav2 bridge output
 ```
 
-(or the **Activate ON-ROAD** panel button). The switch only commits when the
-on-road trajectory is valid and continuous with the current motion.
+In RViz, add a `Trajectory`/`Path` display for `/planning/trajectory` and
+`/nav2_offroad/planning/trajectory`, and a `Map`/`OccupancyGrid` display for
+`/nav2_offroad/costmap/occupancy_grid`. Record a run for offline review with
+`ros2 launch autoware_nav2_offroad debug_record.launch.xml`. More in
+[DEBUGGING.md](DEBUGGING.md).
+
+## 5. Return to on-road
+
+Send a normal on-road goal (RViz "2D Goal Pose" with the routing adaptor, or the
+mission planner). Once the off-road goal is reached, `scenario_selector` resumes
+`LANEDRIVING`/`PARKING` selection automatically.
+
+## Legacy: standalone mode-manager path
+
+The earlier standalone `trajectory_mode_manager` (a runtime `change_mode` service +
+the RViz `OffroadModePanel` button) is **opt-in** and not used by the
+`scenario_selector` flow above. To use it instead, launch `nav2_offroad.launch.xml`
+with `launch_trajectory_mode_manager:=true` and set
+`planning_validator_output_trajectory:=/planning/trajectory_pre_mux`. See
+[MODE_MANAGER_DESIGN.md](MODE_MANAGER_DESIGN.md).
 
 ## What is still missing
 

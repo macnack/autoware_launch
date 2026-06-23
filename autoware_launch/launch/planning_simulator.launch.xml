@@ -120,7 +120,7 @@
     </include>
   </group>
 
-  <group>
+  <group if="$(eval '&quot;$(var navigation_mode)&quot;==&quot;nav2_offroad&quot;')">
     <include file="$(find-pkg-share autoware_nav2_offroad)/launch/nav2_offroad.launch.xml">
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
     </include>
