@@ -5,7 +5,6 @@
     <description>Activate the Nav2 off-road planner or the Autoware on-road planner.</description>
   </class>
   <class
-    name="Off-road Goal"
     type="autoware::nav2_offroad::rviz_plugin::OffroadGoalTool"
     base_class_type="rviz_common::Tool">
     <description>Click-drag to set an off-road navigation goal (publishes /planning/offroad_goal).</description>
