@@ -13,6 +13,8 @@ add_definitions(-DQT_NO_KEYWORDS)
 ament_auto_add_library(${PROJECT_NAME} SHARED
   src/offroad_mode_panel.hpp
   src/offroad_mode_panel.cpp
+  src/offroad_goal_tool.hpp
+  src/offroad_goal_tool.cpp
 )
 target_link_libraries(${PROJECT_NAME}
   ${QT_LIBRARIES}
