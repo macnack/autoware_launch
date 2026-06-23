@@ -191,6 +191,7 @@
   <group if="$(var effective_launch_planning)">
     <include file="$(find-pkg-share autoware_launch)/launch/components/tier4_planning_component.launch.xml">
       <arg name="module_preset" value="$(var planning_module_preset)"/>
+      <arg name="navigation_mode" value="$(var navigation_mode)"/>
       <arg name="enable_all_modules_auto_mode" value="$(var enable_all_modules_auto_mode)"/>
       <arg name="is_simulation" value="$(var is_simulation)"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>

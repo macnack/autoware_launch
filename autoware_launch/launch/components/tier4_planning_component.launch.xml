@@ -2,6 +2,7 @@
 <launch>
   <!-- NOTE: optional parameters are written here -->
   <arg name="module_preset" default="default"/>
+  <arg name="navigation_mode" default="autoware" description="autoware | nav2_offroad"/>
   <arg name="enable_all_modules_auto_mode" default="false"/>
   <arg name="is_simulation" default="false"/>
   <arg name="use_sim_time" default="false"/>
@@ -26,6 +27,7 @@
     <arg name="pointcloud_container_name" value="$(var pointcloud_container_name)"/>
     <arg name="enable_all_modules_auto_mode" value="$(var enable_all_modules_auto_mode)"/>
     <arg name="is_simulation" value="$(var is_simulation)"/>
+    <arg name="enable_offroad" value="$(eval '&quot;$(var navigation_mode)&quot;==&quot;nav2_offroad&quot;')"/>
 
     <!-- Input topic parameters -->
     <arg name="input_objects_topic_name" value="$(var planning_input_objects_topic_name)"/>

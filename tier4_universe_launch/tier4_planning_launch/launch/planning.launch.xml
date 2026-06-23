@@ -15,6 +15,8 @@
   <arg name="enable_all_modules_auto_mode"/>
   <arg name="is_simulation"/>
   <arg name="launch_remaining_distance_time_calculator" default="false"/>
+  <!-- off-road (Nav2) scenario -->
+  <arg name="enable_offroad" default="false" description="activate the OFFROAD scenario in scenario_selector"/>
   <!-- Input topic parameters -->
   <arg name="input_objects_topic_name"/>
   <arg name="input_pointcloud_topic_name"/>
@@ -44,6 +46,7 @@
         <arg name="is_simulation" value="$(var is_simulation)"/>
         <arg name="input_objects_topic_name" value="$(var input_objects_topic_name)"/>
         <arg name="input_pointcloud_topic_name" value="$(var input_pointcloud_topic_name)"/>
+        <arg name="enable_offroad" value="$(var enable_offroad)"/>
       </include>
     </group>
 
