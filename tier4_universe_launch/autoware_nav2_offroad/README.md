@@ -145,7 +145,7 @@ Without these, the diagnostic graph and component state monitor report errors fo
 
 ## Configuration
 
-See **[TUNING.md](TUNING.md)** for a symptom-driven tutorial on what each parameter does and how to tune it, and **[DEBUGGING.md](DEBUGGING.md)** for the observability topics (`~/status`, `~/debug`, `~/events`, `~/markers`), RViz visualization, and the rosbag record preset.
+See **[TUTORIAL.md](TUTORIAL.md)** for an end-to-end walkthrough (launch → switch mode → send goal → drive, plus what's still missing), **[TUNING.md](TUNING.md)** for a symptom-driven tuning guide, and **[DEBUGGING.md](DEBUGGING.md)** for the observability topics (`~/status`, `~/debug`, `~/events`, `~/markers`), RViz visualization, and the rosbag record preset.
 
 Config files in `config/`:
 
