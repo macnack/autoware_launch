@@ -69,3 +69,29 @@ The work spans three repos on feature branches (`autoware_internal_msgs`,
 `autoware_universe`, `autoware_launch`). To ship: merge upstream, cut tags, and bump
 `repositories/autoware.repos`. Until then nav2 deps come via rosdep from the
 package `package.xml`.
+
+## 6. Reverse / Reeds-Shepp support
+
+The planner is `SmacPlannerHybrid` with `motion_model_for_search: DUBIN`
+(forward-only). Switching to `REEDS_SHEPP` lets Hybrid-A\* plan reverse segments
+(reach tight goal headings, back-up maneuvers) — but the planner flag alone is not
+enough: the bridge/`trajectory_builder` currently assumes pure forward motion, so
+reverse segments would be driven forward (wrong direction + 180°-wrong heading).
+
+**Tasks (the real work is the bridge, not the planner):**
+
+- planner: set `motion_model_for_search: REEDS_SHEPP` (and tune `reverse_penalty`).
+- `trajectory_builder`:
+  - detect per-segment motion direction (path tangent vs pose orientation, or the
+    planner's direction info)
+  - set **negative** `longitudinal_velocity_mps` on reverse segments
+  - set point orientation to the **vehicle heading** (opposite the motion tangent
+    while reversing), not the motion tangent
+  - insert a **zero-velocity point at each cusp** (forward↔reverse switch) so the
+    controller can change direction
+- bridge: command `GearCommand::REVERSE` on reverse segments (gear must match the
+  current segment's direction; currently always `DRIVE`)
+- verify `trajectory_follower` tracks the reverse trajectory; relaxed
+  `vehicle_cmd_gate` limits already allow it.
+
+This is a feature, not a config flip — TDD the builder's reverse/cusp handling.
