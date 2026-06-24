@@ -13,9 +13,11 @@ Also lists what is still missing for a full deployment.
 ## 0. Prerequisites
 
 - **Nav2 installed** (not in stock Autoware): `nav2_planner`, `nav2_smoother`,
-  `nav2_navfn_planner`, `nav2_lifecycle_manager`. They are declared in this
+  `nav2_navfn_planner`, `nav2_smac_planner` (provides the heading-aware
+  SmacPlannerHybrid), `nav2_lifecycle_manager`. They are declared in this
   package's `package.xml`, so `rosdep install --from-paths src --ignore-src -y`
-  pulls them; or `apt install ros-$ROS_DISTRO-nav2-{planner,smoother,navfn-planner,lifecycle-manager}`.
+  pulls them; or
+  `apt install ros-$ROS_DISTRO-nav2-{planner,smoother,navfn-planner,smac-planner,lifecycle-manager}`.
 - Workspace built and sourced: `colcon build` → `source install/setup.bash`.
 - **Localization running** (an ego pose on `/localization/kinematic_state`). Without
   it the manager stays in `STANDBY` and only emits a safe-stop.
