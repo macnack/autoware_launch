@@ -115,6 +115,14 @@ without the path curving there.
 
 ## 6. Reverse / Reeds-Shepp support
 
+> **Prioritized next step** — this is the agreed follow-up to drive down the
+> final-goal **heading** error (item 7). The 4 m heading blend reliably fixed
+> position (~0.28 m) but heading stays high-variance (14-31 deg) because a
+> forward-only DUBIN car can't physically realise a tight/perpendicular goal
+> heading. REEDS_SHEPP lets the planner do a real maneuver (back-up / S-curve)
+> that arrives at the goal pose. Plan: **TDD the builder's reverse/cusp handling
+> first** (that is where the correctness risk is), on a new branch.
+
 The planner is `SmacPlannerHybrid` with `motion_model_for_search: DUBIN`
 (forward-only). Switching to `REEDS_SHEPP` lets Hybrid-A\* plan reverse segments
 (reach tight goal headings, back-up maneuvers) — but the planner flag alone is not
