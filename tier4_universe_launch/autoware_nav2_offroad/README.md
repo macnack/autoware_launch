@@ -116,7 +116,11 @@ Make `vehicle_cmd_gate_param_path`, `auto_gear_cmd_topic`, `launch_lane_departur
 
 #### `autoware_launch/launch/components/tier4_autoware_api_component.launch.xml`
 
-Make `launch_routing_adaptor` configurable. In nav2_offroad mode the RViz routing adaptor is disabled — goals go to `/planning/offroad_goal` directly.
+Make `launch_routing_adaptor` configurable. The RViz routing adaptor stays
+**enabled** in nav2_offroad mode: off-road uses its own dedicated "Off-road Goal"
+tool (`/planning/offroad_goal`), while the standard "2D Goal Pose"
+(`/planning/mission_planning/goal`) still needs the adaptor to start an on-road
+route. Disabling it would silently break on-road goals while in nav2_offroad mode.
 
 #### `autoware_launch/launch/components/tier4_simulator_component.launch.xml`
 
