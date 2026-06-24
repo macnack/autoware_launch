@@ -47,8 +47,12 @@ public:
     const rclcpp::Time & stamp, const std::optional<nav_msgs::msg::Odometry> & odometry,
     const std::optional<geometry_msgs::msg::PoseStamped> & goal) const;
 
+  /// Build a trajectory from a planned path. If `goal_yaw` is set, the final
+  /// trajectory point's orientation is pinned to that heading (the planner's goal
+  /// heading), overriding the path-tangent estimate at the goal.
   autoware_planning_msgs::msg::Trajectory createTrajectoryFromPath(
-    const rclcpp::Time & stamp, const nav_msgs::msg::Path & path) const;
+    const rclcpp::Time & stamp, const nav_msgs::msg::Path & path,
+    const std::optional<double> & goal_yaw = std::nullopt) const;
 
 private:
   TrajectoryBuilderParams params_;

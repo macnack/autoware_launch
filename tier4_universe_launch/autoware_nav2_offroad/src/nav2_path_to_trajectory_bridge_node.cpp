@@ -29,6 +29,7 @@
 #include <nav_msgs/msg/path.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
+#include <tf2/utils.h>
 
 #include <algorithm>
 #include <chrono>
@@ -243,7 +244,10 @@ private:
     if (!has_valid_path || !goal || reached_goal) {
       trajectory = trajectory_builder_->createStopTrajectory(now_stamp, odometry, goal);
     } else {
-      trajectory = trajectory_builder_->createTrajectoryFromPath(now_stamp, path);
+      // Pin the final trajectory point to the goal heading (the planner plans to
+      // a pose; preserve that orientation through to the controller).
+      const double goal_yaw = tf2::getYaw(goal->pose.orientation);
+      trajectory = trajectory_builder_->createTrajectoryFromPath(now_stamp, path, goal_yaw);
       if (trajectory.points.size() < 2) {
         RCLCPP_WARN_THROTTLE(
           get_logger(), *get_clock(), 2000,

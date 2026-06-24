@@ -3,7 +3,12 @@
 Known follow-ups / future work. Not blocking the current (validated) off-road
 sim flow.
 
-## 1. Goal-heading-aware planning (SmacPlannerHybrid)
+## 1. Goal-heading-aware planning (SmacPlannerHybrid) — DONE (branch feat/offroad-smac-planner)
+
+Implemented: planner switched to `nav2_smac_planner/SmacPlannerHybrid` (Dubin,
+minimum_turning_radius ~3.5 m), inflation layer added to the costmap, and the
+bridge pins the final trajectory point to the goal heading. `nav2_smac_planner`
+added to `package.xml`. Runtime heading verification (drive in sim) still pending.
 
 **Problem:** the current Nav2 planner is `NavfnPlanner` (`GridBased`), a 2-D
 holonomic grid planner. It plans to the goal **position only and ignores the goal

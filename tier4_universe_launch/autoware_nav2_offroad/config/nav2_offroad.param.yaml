@@ -3,11 +3,38 @@ planner_server:
     expected_planner_frequency: 10.0
     use_sim_time: false
     planner_plugins: ["GridBased"]
+    # Hybrid-A* (nav2_smac_planner): respects the goal HEADING and is
+    # kinematically feasible (car-like, minimum turning radius) — unlike NavfnPlanner
+    # which plans to the goal position only and ignores orientation.
     GridBased:
-      plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 5.0
-      use_astar: true
+      plugin: "nav2_smac_planner/SmacPlannerHybrid"
+      tolerance: 0.5                       # goal pose tolerance [m]
       allow_unknown: true
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 5.0
+      motion_model_for_search: "DUBIN"     # forward-only; use REEDS_SHEPP to allow reverse
+      angle_quantization_bins: 72          # 5 deg heading resolution
+      analytic_expansion_ratio: 3.5
+      analytic_expansion_max_length: 3.0
+      # Minimum turning radius ~= wheel_base / tan(max_steer_angle).
+      # sample_vehicle: 2.79 / tan(0.7) ~= 3.31 m -> set per vehicle.
+      minimum_turning_radius: 3.5
+      reverse_penalty: 2.0
+      change_penalty: 0.0
+      non_straight_penalty: 1.2
+      cost_penalty: 2.0
+      retrospective_penalty: 0.015
+      lookup_table_size: 20.0
+      cache_obstacle_heuristic: false
+      downsample_costmap: false
+      downsampling_factor: 1
+      smooth_path: true
+      smoother:
+        max_iterations: 1000
+        w_smooth: 0.3
+        w_data: 0.2
+        tolerance: 1.0e-10
 
 global_costmap:
   global_costmap:
@@ -20,12 +47,16 @@ global_costmap:
       resolution: 0.5
       robot_radius: 1.5
       track_unknown_space: false
-      plugins: ["static_layer"]
+      plugins: ["static_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_topic: /nav2_offroad/costmap/occupancy_grid
         map_subscribe_transient_local: true
         subscribe_to_updates: false
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 2.0
       always_send_full_costmap: true
 
 smoother_server:

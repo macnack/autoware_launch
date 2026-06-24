@@ -42,6 +42,11 @@ geometry_msgs::msg::PoseStamped makePose(const double x, const double y)
   pose.pose.orientation.w = 1.0;
   return pose;
 }
+
+double yawOf(const geometry_msgs::msg::Quaternion & q)
+{
+  return std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+}
 }  // namespace
 
 TEST(TrajectoryBuilder, CreatesStopTrajectoryWithThreeZeroSpeedPoints)
@@ -97,6 +102,29 @@ TEST(TrajectoryBuilder, CreatesForwardTrajectoryAndStopsAtLastPoint)
     EXPECT_GE(current_time, previous_time);
     previous_time = current_time;
   }
+}
+
+TEST(TrajectoryBuilder, PinsFinalPointOrientationToGoalYaw)
+{
+  autoware::nav2_offroad::TrajectoryBuilder builder(
+    autoware::nav2_offroad::TrajectoryBuilderParams{});
+
+  nav_msgs::msg::Path path;
+  path.header.frame_id = "map";
+  path.poses.push_back(makePose(0.0, 0.0));
+  path.poses.push_back(makePose(2.0, 0.0));
+  path.poses.push_back(makePose(4.0, 0.0));  // path runs along +x (tangent yaw ~ 0)
+
+  const double goal_yaw = M_PI_2;
+  const auto trajectory =
+    builder.createTrajectoryFromPath(rclcpp::Time(123, 0, RCL_ROS_TIME), path, goal_yaw);
+  ASSERT_GE(trajectory.points.size(), 2U);
+  EXPECT_NEAR(yawOf(trajectory.points.back().pose.orientation), M_PI_2, 1e-3);
+
+  // Without goal_yaw the last point keeps its path-tangent orientation (~0).
+  const auto default_trajectory =
+    builder.createTrajectoryFromPath(rclcpp::Time(123, 0, RCL_ROS_TIME), path);
+  EXPECT_NEAR(yawOf(default_trajectory.points.back().pose.orientation), 0.0, 1e-3);
 }
 
 TEST(TrajectoryBuilder, ReturnsEmptyTrajectoryForDegeneratePath)

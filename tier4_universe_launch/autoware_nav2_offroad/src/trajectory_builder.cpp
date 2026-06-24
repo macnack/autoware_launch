@@ -303,7 +303,8 @@ autoware_planning_msgs::msg::Trajectory TrajectoryBuilder::createStopTrajectory(
 }
 
 autoware_planning_msgs::msg::Trajectory TrajectoryBuilder::createTrajectoryFromPath(
-  const rclcpp::Time & stamp, const nav_msgs::msg::Path & path) const
+  const rclcpp::Time & stamp, const nav_msgs::msg::Path & path,
+  const std::optional<double> & goal_yaw) const
 {
   autoware_planning_msgs::msg::Trajectory trajectory;
   trajectory.header = path.header;
@@ -363,6 +364,13 @@ autoware_planning_msgs::msg::Trajectory TrajectoryBuilder::createTrajectoryFromP
 
     previous_velocity = velocity;
     trajectory.points.push_back(point);
+  }
+
+  // Belt-and-braces: pin the final point to the planner's goal heading so the
+  // controller reaches the requested orientation (the path-tangent estimate
+  // only approximates it).
+  if (goal_yaw && !trajectory.points.empty()) {
+    trajectory.points.back().pose.orientation = createQuaternionFromYaw(*goal_yaw);
   }
 
   return trajectory;
