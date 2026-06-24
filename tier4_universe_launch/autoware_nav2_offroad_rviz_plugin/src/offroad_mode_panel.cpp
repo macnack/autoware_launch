@@ -31,6 +31,7 @@ constexpr char kChangeModeService[] = "/nav2_offroad/mode_manager/change_mode";
 constexpr char kStatusTopic[] = "/nav2_offroad/mode_manager/status";
 constexpr char kDebugTopic[] = "/nav2_offroad/mode_manager/debug";
 constexpr char kLifecycleService[] = "/lifecycle_manager_navigation/manage_nodes";
+constexpr char kOffroadCancelTopic[] = "/planning/offroad_cancel";
 }  // namespace
 
 using TrajectoryModeState = autoware_nav2_offroad_msgs::msg::TrajectoryModeState;
@@ -72,6 +73,8 @@ void OffroadModePanel::onInitialize()
 
   client_ = node->create_client<ChangeTrajectoryMode>(kChangeModeService);
   lifecycle_client_ = node->create_client<ManageLifecycleNodes>(kLifecycleService);
+  offroad_cancel_pub_ =
+    node->create_publisher<std_msgs::msg::Bool>(kOffroadCancelTopic, rclcpp::QoS{1});
 
   status_sub_ = node->create_subscription<TrajectoryModeState>(
     kStatusTopic, rclcpp::QoS{1}.transient_local(),
@@ -88,6 +91,14 @@ void OffroadModePanel::onClickOffroad()
 
 void OffroadModePanel::onClickOnroad()
 {
+  // Cancel the off-road (Nav2) scenario in scenario_selector so the stack falls
+  // back to Autoware lane-driving even when no new on-road route has been set
+  // (e.g. the vehicle is off the lanelet map and cannot be routed).
+  if (offroad_cancel_pub_) {
+    std_msgs::msg::Bool cancel;
+    cancel.data = true;
+    offroad_cancel_pub_->publish(cancel);
+  }
   requestMode(TrajectoryModeState::MODE_AW_PLANNING);
 }
 

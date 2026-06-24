@@ -24,6 +24,7 @@
 #include <autoware_nav2_offroad_msgs/srv/change_trajectory_mode.hpp>
 #include <nav2_msgs/srv/manage_lifecycle_nodes.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 #include <string>
 
@@ -59,6 +60,7 @@ private:
 
   rclcpp::Client<autoware_nav2_offroad_msgs::srv::ChangeTrajectoryMode>::SharedPtr client_;
   rclcpp::Client<nav2_msgs::srv::ManageLifecycleNodes>::SharedPtr lifecycle_client_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr offroad_cancel_pub_;
   rclcpp::Subscription<autoware_nav2_offroad_msgs::msg::TrajectoryModeState>::SharedPtr status_sub_;
   rclcpp::Subscription<autoware_nav2_offroad_msgs::msg::TrajectoryModeDebug>::SharedPtr debug_sub_;
 
