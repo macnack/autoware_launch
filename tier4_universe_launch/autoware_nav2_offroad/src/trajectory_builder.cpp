@@ -48,6 +48,17 @@ builtin_interfaces::msg::Duration toDurationMsg(const double seconds)
   return duration;
 }
 
+double normalizeAngle(double angle)
+{
+  while (angle > M_PI) {
+    angle -= 2.0 * M_PI;
+  }
+  while (angle < -M_PI) {
+    angle += 2.0 * M_PI;
+  }
+  return angle;
+}
+
 geometry_msgs::msg::Quaternion createQuaternionFromYaw(const double yaw)
 {
   geometry_msgs::msg::Quaternion q;
@@ -338,10 +349,23 @@ autoware_planning_msgs::msg::Trajectory TrajectoryBuilder::createTrajectoryFromP
 
     ensureValidOrientation(point.pose);
     const double fallback_yaw = tf2::getYaw(point.pose.orientation);
-    point.pose.orientation = createQuaternionFromYaw(
-      estimateYaw(sampled_for_output, i, fallback_yaw));
+    const double tangent_yaw = estimateYaw(sampled_for_output, i, fallback_yaw);
 
     const double remaining = total_length - cumulative[i];
+
+    // Blend the heading from the path tangent (far from the goal) to the goal
+    // heading (at the goal) over the final approach, so the controller rotates
+    // into the requested orientation along the way instead of seeing a single
+    // end-point jump it would track too late. Heading is the metric that matters
+    // at an off-road goal; some lateral give on the approach is acceptable.
+    double point_yaw = tangent_yaw;
+    if (goal_yaw && params_.goal_heading_blend_distance_m > 1e-6) {
+      const double ratio =
+        std::clamp(remaining / params_.goal_heading_blend_distance_m, 0.0, 1.0);
+      point_yaw = *goal_yaw + ratio * normalizeAngle(tangent_yaw - *goal_yaw);
+    }
+    point.pose.orientation = createQuaternionFromYaw(point_yaw);
+
     double velocity =
       params_.cruise_speed_mps * std::clamp(remaining / params_.goal_taper_distance_m, 0.0, 1.0);
     if (i == sampled_for_output.size() - 1) {
@@ -366,9 +390,8 @@ autoware_planning_msgs::msg::Trajectory TrajectoryBuilder::createTrajectoryFromP
     trajectory.points.push_back(point);
   }
 
-  // Belt-and-braces: pin the final point to the planner's goal heading so the
-  // controller reaches the requested orientation (the path-tangent estimate
-  // only approximates it).
+  // Belt-and-braces: pin the final point exactly to the goal heading (the blend
+  // already drives it there as remaining->0, this guards against rounding).
   if (goal_yaw && !trajectory.points.empty()) {
     trajectory.points.back().pose.orientation = createQuaternionFromYaw(*goal_yaw);
   }

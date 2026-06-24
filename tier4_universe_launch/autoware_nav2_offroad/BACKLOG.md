@@ -70,6 +70,49 @@ The work spans three repos on feature branches (`autoware_internal_msgs`,
 `repositories/autoware.repos`. Until then nav2 deps come via rosdep from the
 package `package.xml`.
 
+## 7. Reduce final-goal HEADING error (priority: heading, x/y can be off)
+
+Measured with `scripts/offroad_goal_scenario.py` (goal at ego+20 m, yaw 90 deg):
+position ~0.66-0.75 m, **heading ~21-37 deg** with high run-to-run variation.
+Tightening the off-road params (`goal_reached_distance_m` 0.8->0.3,
+`tolerance` 0.5->0.25) did not help — the vehicle stops ~0.66 m short of the
+trajectory end (controller terminal accuracy), and at that point it is still
+mid-rotation toward the goal heading.
+
+**Heading is the metric that matters** (position can be off). Root cause: the
+`trajectory_builder` recomputes each point's orientation from the **path tangent**
+and only pins the very last point to the goal heading — a single-point jump the
+controller ignores. So the commanded heading near the goal lags the goal heading.
+
+**Implemented:** the `trajectory_builder` now blends point orientation from the
+path tangent to the goal heading over `goal_heading_blend_distance_m` (default
+4 m) before the goal, so the controller rotates into the goal heading along the
+approach instead of seeing a single end-point jump.
+
+**Measured (sim, SmacPlannerHybrid + 4 m blend):**
+
+- position error: **reliably** down from ~0.66 m to **~0.28 m**
+- heading error: improved on average but **high variance** (~14-31 deg run to
+  run) — NOT reliably small
+
+**Why heading still varies:** a forward-only (DUBIN) car arriving at a point goal
+can only realise the heading its planned path geometry delivers; when the
+controller decelerates and stops a little short, or the planned path doesn't fully
+curve to the goal pose that run, the final heading lags. The blend biases the
+command toward the goal heading but cannot make the vehicle physically rotate
+without the path curving there.
+
+**To make goal heading reliable (next):**
+
+- enable **REEDS_SHEPP** (item 6) so Hybrid-A\* can plan a real maneuver
+  (back-up / S-curve) that physically arrives at the goal heading — the single
+  biggest lever for tight/perpendicular goal headings
+- tune the `trajectory_follower` terminal behaviour so it tracks the final
+  heading-aligning curve instead of stopping short
+- increase `goal_heading_blend_distance_m` (more approach heading authority) and
+  the planner `analytic_expansion_*` so the path ends with a longer aligned segment
+- average several scenario runs (single runs are noisy)
+
 ## 6. Reverse / Reeds-Shepp support
 
 The planner is `SmacPlannerHybrid` with `motion_model_for_search: DUBIN`

@@ -127,6 +127,44 @@ TEST(TrajectoryBuilder, PinsFinalPointOrientationToGoalYaw)
   EXPECT_NEAR(yawOf(default_trajectory.points.back().pose.orientation), 0.0, 1e-3);
 }
 
+TEST(TrajectoryBuilder, BlendsHeadingToGoalOverFinalApproach)
+{
+  autoware::nav2_offroad::TrajectoryBuilderParams params;
+  params.resample_interval_m = 0.5;
+  params.min_trajectory_point_distance_m = 0.2;
+  params.goal_heading_blend_distance_m = 4.0;
+  autoware::nav2_offroad::TrajectoryBuilder builder(params);
+
+  nav_msgs::msg::Path path;
+  path.header.frame_id = "map";
+  for (double x = 0.0; x <= 8.0 + 1e-9; x += 1.0) {
+    path.poses.push_back(makePose(x, 0.0));  // path along +x (tangent yaw ~ 0)
+  }
+
+  const double goal_yaw = M_PI_2;
+  const auto traj =
+    builder.createTrajectoryFromPath(rclcpp::Time(123, 0, RCL_ROS_TIME), path, goal_yaw);
+  ASSERT_GE(traj.points.size(), 5U);
+
+  // Goal point reaches the goal heading.
+  EXPECT_NEAR(yawOf(traj.points.back().pose.orientation), M_PI_2, 1e-2);
+  // Far from the goal (start, beyond the blend distance) keeps the path tangent (~0).
+  EXPECT_NEAR(yawOf(traj.points.front().pose.orientation), 0.0, 1e-2);
+
+  // The second-to-last point is partway between tangent and goal heading: the
+  // heading is blended over the approach rather than jumping only at the end.
+  const double penultimate_yaw = yawOf(traj.points.at(traj.points.size() - 2).pose.orientation);
+  EXPECT_GT(penultimate_yaw, 0.3);
+  EXPECT_LT(penultimate_yaw, M_PI_2 - 0.01);
+
+  // Heading is non-decreasing toward the goal across the final stretch.
+  for (size_t i = traj.points.size() - 4; i + 1 < traj.points.size(); ++i) {
+    EXPECT_LE(
+      yawOf(traj.points.at(i).pose.orientation),
+      yawOf(traj.points.at(i + 1).pose.orientation) + 1e-6);
+  }
+}
+
 TEST(TrajectoryBuilder, ReturnsEmptyTrajectoryForDegeneratePath)
 {
   autoware::nav2_offroad::TrajectoryBuilder builder(

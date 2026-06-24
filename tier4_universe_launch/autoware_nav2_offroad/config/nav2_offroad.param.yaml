@@ -8,7 +8,7 @@ planner_server:
     # which plans to the goal position only and ignores orientation.
     GridBased:
       plugin: "nav2_smac_planner/SmacPlannerHybrid"
-      tolerance: 0.5                       # goal pose tolerance [m]
+      tolerance: 0.25                      # goal pose tolerance [m] (smaller = ends closer to exact goal pose)
       allow_unknown: true
       max_iterations: 1000000
       max_on_approach_iterations: 1000

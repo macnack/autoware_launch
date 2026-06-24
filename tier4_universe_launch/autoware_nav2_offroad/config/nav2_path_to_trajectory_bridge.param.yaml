@@ -19,8 +19,12 @@
     resample_interval_m: 0.5
     cruise_speed_mps: 2.0
     goal_taper_distance_m: 5.0
-    goal_reached_distance_m: 0.8
+    goal_reached_distance_m: 0.3
     stop_trajectory_min_length_m: 0.5
     min_trajectory_point_distance_m: 0.2
+    # Blend trajectory heading from path tangent to the goal heading over this
+    # distance before the goal, so the controller rotates into the goal heading
+    # along the approach (heading is the metric that matters at an off-road goal).
+    goal_heading_blend_distance_m: 4.0
     action_server_timeout_sec: 1.0
     smoothing_timeout_sec: 0.5

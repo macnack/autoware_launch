@@ -34,6 +34,10 @@ struct TrajectoryBuilderParams
   double goal_taper_distance_m{5.0};
   double stop_trajectory_min_length_m{0.5};
   double min_trajectory_point_distance_m{0.2};
+  // Over this distance before the goal, blend point orientation from the path
+  // tangent to the goal heading so the controller rotates into the goal heading
+  // along the approach (not just at the final point).
+  double goal_heading_blend_distance_m{4.0};
 };
 
 double distance2d(const geometry_msgs::msg::Point & a, const geometry_msgs::msg::Point & b);

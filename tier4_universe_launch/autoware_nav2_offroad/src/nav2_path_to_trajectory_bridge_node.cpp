@@ -109,6 +109,8 @@ public:
       std::max(declare_parameter<double>("stop_trajectory_min_length_m", 0.1), 0.0);
     const double min_trajectory_point_distance_m =
       std::max(declare_parameter<double>("min_trajectory_point_distance_m", 0.2), 0.01);
+    const double goal_heading_blend_distance_m =
+      std::max(declare_parameter<double>("goal_heading_blend_distance_m", 4.0), 0.0);
     action_server_timeout_sec_ =
       std::max(declare_parameter<double>("action_server_timeout_sec", 1.0), 0.1);
     smoothing_timeout_sec_ =
@@ -121,6 +123,7 @@ public:
         goal_taper_distance_m,
         stop_trajectory_min_length_m,
         min_trajectory_point_distance_m,
+        goal_heading_blend_distance_m,
       });
 
     trajectory_publisher_ = create_publisher<autoware_planning_msgs::msg::Trajectory>(
