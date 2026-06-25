@@ -15,6 +15,16 @@
   <arg name="enable_all_modules_auto_mode"/>
   <arg name="is_simulation"/>
   <arg name="launch_remaining_distance_time_calculator" default="false"/>
+  <!-- off-road (Nav2) scenario -->
+  <arg name="enable_offroad" default="false" description="activate the OFFROAD scenario in scenario_selector"/>
+  <!-- planning_validator output: stock /planning/trajectory (scenario_selector owns selection).
+       Set to /planning/trajectory_pre_mux only for the legacy trajectory_mode_mux path. -->
+  <arg name="planning_validator_output_trajectory" default="/planning/trajectory"/>
+  <!-- In off-road mode there is no lanelet route, so the route-gated planning_validator
+       never publishes. Park its output and relay the smoothed off-road trajectory to
+       /planning/trajectory instead. -->
+  <let name="effective_validator_output" value="$(var planning_validator_output_trajectory)"/>
+  <let name="effective_validator_output" value="/planning/scenario_planning/validator_unused/trajectory" if="$(var enable_offroad)"/>
   <!-- Input topic parameters -->
   <arg name="input_objects_topic_name"/>
   <arg name="input_pointcloud_topic_name"/>
@@ -46,6 +56,7 @@
         <arg name="is_simulation" value="$(var is_simulation)"/>
         <arg name="input_objects_topic_name" value="$(var input_objects_topic_name)"/>
         <arg name="input_pointcloud_topic_name" value="$(var input_pointcloud_topic_name)"/>
+        <arg name="enable_offroad" value="$(var enable_offroad)"/>
       </include>
     </group>
 
@@ -81,7 +92,7 @@
       <include file="$(find-pkg-share autoware_planning_validator)/launch/planning_validator.launch.xml">
         <arg name="container_type" value="component_container_mt"/>
         <arg name="input_trajectory_topic_name" value="$(var validator_input_trajectory)"/>
-        <arg name="output_trajectory" value="/planning/trajectory"/>
+        <arg name="output_trajectory" value="$(var effective_validator_output)"/>
         <arg name="input_objects_topic_name" value="$(var input_objects_topic_name)"/>
         <arg name="input_pointcloud_topic_name" value="$(var input_pointcloud_topic_name)"/>
         <arg name="planning_validator_param_path" value="$(var planning_validator_param_path)"/>
@@ -122,5 +133,15 @@
     <group if="$(var launch_remaining_distance_time_calculator)">
       <include file="$(find-pkg-share autoware_remaining_distance_time_calculator)/launch/remaining_distance_time_calculator.launch.xml"/>
     </group>
+  </group>
+
+  <!-- Off-road (Nav2): the route-gated planning_validator cannot run without a
+       lanelet route, so relay the smoothed off-road trajectory straight to
+       /planning/trajectory. -->
+  <group if="$(var enable_offroad)">
+    <node pkg="topic_tools" exec="relay" name="offroad_trajectory_relay" output="screen">
+      <param name="input_topic" value="/planning/scenario_planning/velocity_smoother/trajectory"/>
+      <param name="output_topic" value="/planning/trajectory"/>
+    </node>
   </group>
 </launch>

@@ -11,6 +11,7 @@
   <arg name="planning_setting" default="rule_based" description="planning setting diffusion_planner / rule_based"/>
   <arg name="planning_module_preset" default="default" description="planning module preset"/>
   <arg name="control_module_preset" default="default" description="control module preset"/>
+  <arg name="navigation_mode" default="autoware" description="navigation mode. options: autoware, nav2_offroad"/>
 
   <!-- Optional parameters -->
   <!-- Modules to be launched -->
@@ -24,6 +25,9 @@
   <arg name="launch_planning" default="true" description="launch planning"/>
   <arg name="launch_control" default="true" description="launch control"/>
   <arg name="launch_api" default="true" description="launch api"/>
+  <arg name="launch_routing_adaptor" default="true" description="launch rviz routing adaptor"/>
+  <arg name="launch_lane_departure_checker" default="true" description="launch lane departure checker"/>
+  <arg name="launch_control_evaluator" default="true" description="launch control evaluator"/>
   <!-- Global parameters -->
   <arg name="use_sim_time" default="false" description="use_sim_time"/>
   <!-- Vehicle -->
@@ -38,6 +42,11 @@
   <arg name="system_run_mode" default="online" description="run mode in system"/>
   <arg name="launch_system_monitor" default="true" description="launch system monitor"/>
   <arg name="launch_dummy_diag_publisher" default="false" description="launch dummy diag publisher"/>
+  <arg
+    name="component_state_monitor_topic_path"
+    default="$(find-pkg-share autoware_launch)/config/system/component_state_monitor/topics.yaml"
+    description="component state monitor topics file path"
+  />
   <arg name="diagnostic_graph_aggregator_graph_path" default="$(find-pkg-share autoware_launch)/config/system/diagnostics/autoware-main.yaml" description="diagnostic graph config"/>
   <!-- Tools -->
   <arg name="rviz" default="true" description="launch rviz"/>
@@ -50,6 +59,69 @@
   <!-- Auto mode setting-->
   <arg name="enable_all_modules_auto_mode" default="false" description="enable all module's auto mode"/>
   <arg name="is_simulation" default="false" description="Autoware's behavior will change depending on whether this is a simulation or not."/>
+
+  <let name="effective_launch_planning" value="$(var launch_planning)"/>
+  <let name="effective_launch_control" value="$(var launch_control)"/>
+  <let
+    name="effective_launch_control"
+    value="true"
+    if="$(eval '&quot;$(var navigation_mode)&quot;==&quot;nav2_offroad&quot;')"
+  />
+  <let name="effective_launch_api" value="$(var launch_api)"/>
+  <!-- The RViz routing adaptor converts the standard "2D Goal Pose"
+       (/planning/mission_planning/goal) into an on-road route request. Off-road
+       mode uses its own dedicated "Off-road Goal" tool (/planning/offroad_goal),
+       so the adaptor must stay enabled even in nav2_offroad mode — otherwise the
+       2D Goal Pose produces no route and on-road driving cannot be started. -->
+  <let name="effective_launch_routing_adaptor" value="$(var launch_routing_adaptor)"/>
+  <let name="effective_launch_lane_departure_checker" value="$(var launch_lane_departure_checker)"/>
+  <let
+    name="effective_launch_lane_departure_checker"
+    value="false"
+    if="$(eval '&quot;$(var navigation_mode)&quot;==&quot;nav2_offroad&quot;')"
+  />
+  <let name="effective_launch_control_evaluator" value="$(var launch_control_evaluator)"/>
+  <let
+    name="effective_launch_control_evaluator"
+    value="false"
+    if="$(eval '&quot;$(var navigation_mode)&quot;==&quot;nav2_offroad&quot;')"
+  />
+  <let
+    name="effective_vehicle_cmd_gate_param_path"
+    value="$(find-pkg-share autoware_launch)/config/control/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"
+  />
+  <let
+    name="effective_vehicle_cmd_gate_param_path"
+    value="$(find-pkg-share autoware_nav2_offroad)/config/vehicle_cmd_gate_nav2_offroad.param.yaml"
+    if="$(eval '&quot;$(var navigation_mode)&quot;==&quot;nav2_offroad&quot;')"
+  />
+  <let
+    name="effective_auto_gear_cmd_topic"
+    value="/control/shift_decider/gear_cmd"
+  />
+  <let
+    name="effective_auto_gear_cmd_topic"
+    value="/planning/gear_cmd"
+    if="$(eval '&quot;$(var navigation_mode)&quot;==&quot;nav2_offroad&quot;')"
+  />
+  <let
+    name="effective_component_state_monitor_topic_path"
+    value="$(var component_state_monitor_topic_path)"
+  />
+  <let
+    name="effective_component_state_monitor_topic_path"
+    value="$(find-pkg-share autoware_launch)/config/system/component_state_monitor/topics_nav2_offroad.yaml"
+    if="$(eval '&quot;$(var navigation_mode)&quot;==&quot;nav2_offroad&quot;')"
+  />
+  <let
+    name="effective_diagnostic_graph_aggregator_graph_path"
+    value="$(var diagnostic_graph_aggregator_graph_path)"
+  />
+  <let
+    name="effective_diagnostic_graph_aggregator_graph_path"
+    value="$(find-pkg-share autoware_launch)/config/system/diagnostics/autoware-main-nav2-offroad.yaml"
+    if="$(eval '&quot;$(var navigation_mode)&quot;==&quot;nav2_offroad&quot;')"
+  />
 
   <!-- Global parameters -->
   <group scoped="false">
@@ -79,7 +151,16 @@
 
   <!-- System -->
   <group if="$(var launch_system)">
-    <include file="$(find-pkg-share autoware_launch)/launch/components/tier4_system_component.launch.xml"/>
+    <include file="$(find-pkg-share autoware_launch)/launch/components/tier4_system_component.launch.xml">
+      <arg
+        name="component_state_monitor_topic_path"
+        value="$(var effective_component_state_monitor_topic_path)"
+      />
+      <arg
+        name="diagnostic_graph_aggregator_graph_path"
+        value="$(var effective_diagnostic_graph_aggregator_graph_path)"
+      />
+    </include>
   </group>
 
   <!-- Map -->
@@ -108,9 +189,10 @@
   </group>
 
   <!-- Planning -->
-  <group if="$(var launch_planning)">
+  <group if="$(var effective_launch_planning)">
     <include file="$(find-pkg-share autoware_launch)/launch/components/tier4_planning_component.launch.xml">
       <arg name="module_preset" value="$(var planning_module_preset)"/>
+      <arg name="navigation_mode" value="$(var navigation_mode)"/>
       <arg name="enable_all_modules_auto_mode" value="$(var enable_all_modules_auto_mode)"/>
       <arg name="is_simulation" value="$(var is_simulation)"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
@@ -120,17 +202,22 @@
   </group>
 
   <!-- Control -->
-  <group if="$(var launch_control)">
+  <group if="$(var effective_launch_control)">
     <include file="$(find-pkg-share autoware_launch)/launch/components/tier4_control_component.launch.xml">
       <arg name="module_preset" value="$(var control_module_preset)"/>
+      <arg name="launch_lane_departure_checker" value="$(var effective_launch_lane_departure_checker)"/>
+      <arg name="launch_control_evaluator" value="$(var effective_launch_control_evaluator)"/>
+      <arg name="vehicle_cmd_gate_param_path" value="$(var effective_vehicle_cmd_gate_param_path)"/>
+      <arg name="auto_gear_cmd_topic" value="$(var effective_auto_gear_cmd_topic)"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
       <arg name="vehicle_model" value="$(var vehicle_model)"/>
     </include>
   </group>
 
   <!-- API -->
-  <group if="$(var launch_api)">
+  <group if="$(var effective_launch_api)">
     <include file="$(find-pkg-share autoware_launch)/launch/components/tier4_autoware_api_component.launch.xml">
+      <arg name="launch_routing_adaptor" value="$(var effective_launch_routing_adaptor)"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
       <arg name="vehicle_model" value="$(var vehicle_model)"/>
     </include>

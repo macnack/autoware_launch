@@ -1,0 +1,9 @@
+/**:
+  ros__parameters:
+    # Real Autoware perception occupancy grid map (autoware_probabilistic_occupancy_grid_map).
+    input_topic: /perception/occupancy_grid_map/map
+    # Latched topic the Nav2 costmap StaticLayer subscribes to.
+    output_topic: /nav2_offroad/costmap/occupancy_grid
+    # Map unknown (-1) cells to free (0) so the planner can route through
+    # unobserved space. Leave false to treat unknown space as lethal/unknown.
+    unknown_as_free: false

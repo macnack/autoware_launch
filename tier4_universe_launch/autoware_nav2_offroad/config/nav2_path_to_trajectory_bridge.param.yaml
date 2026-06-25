@@ -1,0 +1,30 @@
+/**:
+  ros__parameters:
+    goal_topic: /planning/offroad_goal
+    odometry_topic: /localization/kinematic_state
+    trajectory_topic: /nav2_offroad/planning/trajectory
+    turn_indicators_topic: /planning/turn_indicators_cmd
+    hazard_lights_topic: /planning/hazard_lights_cmd
+    gear_cmd_topic: /planning/gear_cmd
+    engage_topic: /autoware/engage
+    force_engage: false
+    auto_accept_start: false
+    motion_state_topic: /api/motion/state
+    accept_start_service: /api/motion/accept_start
+    planner_action_name: /compute_path_to_pose
+    smoother_action_name: /smooth_path
+    planner_id: GridBased
+    smoother_id: simple_smoother
+    publish_rate_hz: 10.0
+    resample_interval_m: 0.5
+    cruise_speed_mps: 2.0
+    goal_taper_distance_m: 5.0
+    goal_reached_distance_m: 0.3
+    stop_trajectory_min_length_m: 0.5
+    min_trajectory_point_distance_m: 0.2
+    # Blend trajectory heading from path tangent to the goal heading over this
+    # distance before the goal, so the controller rotates into the goal heading
+    # along the approach (heading is the metric that matters at an off-road goal).
+    goal_heading_blend_distance_m: 4.0
+    action_server_timeout_sec: 1.0
+    smoothing_timeout_sec: 0.5
