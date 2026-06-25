@@ -10,11 +10,19 @@
   <!-- Input topic parameters -->
   <arg name="input_objects_topic_name"/>
   <arg name="input_pointcloud_topic_name"/>
+  <!-- off-road (Nav2) scenario -->
+  <arg name="enable_offroad" default="false" description="activate the OFFROAD (Nav2) scenario in scenario_selector"/>
+  <arg name="offroad_trajectory_topic" default="/nav2_offroad/planning/trajectory"/>
+  <arg name="offroad_goal_topic" default="/planning/offroad_goal"/>
+  <arg name="offroad_cancel_topic" default="/planning/offroad_cancel"/>
   <!-- scenario selector -->
   <group>
     <include file="$(find-pkg-share autoware_scenario_selector)/launch/scenario_selector.launch.xml">
       <arg name="input_lane_driving_trajectory" value="/planning/scenario_planning/lane_driving/trajectory"/>
       <arg name="input_parking_trajectory" value="/planning/scenario_planning/parking/trajectory"/>
+      <arg name="input_offroad_trajectory" value="$(var offroad_trajectory_topic)"/>
+      <arg name="input_offroad_goal" value="$(var offroad_goal_topic)"/>
+      <arg name="input_offroad_cancel" value="$(var offroad_cancel_topic)"/>
       <arg name="input_lanelet_map" value="/map/vector_map"/>
       <arg name="input_route" value="/planning/mission_planning/route"/>
       <arg name="input_odometry" value="/localization/kinematic_state"/>
@@ -22,6 +30,7 @@
       <arg name="output_scenario" value="/planning/scenario_planning/scenario"/>
       <arg name="output_trajectory" value="/planning/scenario_planning/scenario_selector/trajectory"/>
       <arg name="is_parking_completed" value="/planning/scenario_planning/parking/is_completed"/>
+      <arg name="enable_offroad" value="$(var enable_offroad)"/>
     </include>
   </group>
 

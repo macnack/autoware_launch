@@ -1,0 +1,9 @@
+/**:
+  ros__parameters:
+    # External SLAM occupancy grid (nav_msgs/OccupancyGrid). Override input_topic if your
+    # SLAM stack publishes elsewhere.
+    input_topic: /map
+    # Latched topic the Nav2 costmap StaticLayer subscribes to.
+    output_topic: /nav2_offroad/costmap/occupancy_grid
+    # Keep unknown (-1) as unknown so the planner only routes over explored/known free space.
+    unknown_as_free: false
