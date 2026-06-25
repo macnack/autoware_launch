@@ -34,6 +34,12 @@ ValidationResult fail(
   r.reason = std::move(reason);
   return r;
 }
+
+bool allFinite(const TrajPoint & q)
+{
+  return std::isfinite(q.x) && std::isfinite(q.y) && std::isfinite(q.yaw) &&
+         std::isfinite(q.velocity_mps) && std::isfinite(q.acceleration_mps2);
+}
 }  // namespace
 
 std::string toString(FailedCheck check)
@@ -74,6 +80,14 @@ ValidationResult TrajectoryValidatorCore::validate(
       static_cast<double>(p.min_points),
       "trajectory has " + std::to_string(traj.size()) + " points, need at least " +
         std::to_string(p.min_points));
+  }
+
+  // 2. Finite.
+  for (std::size_t i = 0; i < traj.size(); ++i) {
+    if (!allFinite(traj[i])) {
+      return fail(
+        FailedCheck::NON_FINITE, i, 0.0, 0.0, "non-finite value at point " + std::to_string(i));
+    }
   }
 
   return ValidationResult{};  // feasible

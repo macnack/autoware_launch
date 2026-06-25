@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace
@@ -73,5 +74,26 @@ TEST(TrajectoryValidatorCore, TooFewPointsFails)
   const ValidationResult r = core.validate(traj, egoAt(traj.front()));
   EXPECT_FALSE(r.feasible);
   EXPECT_EQ(r.check, FailedCheck::TOO_FEW_POINTS);
+}
+
+TEST(TrajectoryValidatorCore, NaNPositionFails)
+{
+  TrajectoryValidatorCore core{ValidatorParams{}};
+  auto traj = feasibleTraj();
+  traj[2].x = std::nan("");
+  const auto r = core.validate(traj, egoAt(traj.front()));
+  EXPECT_FALSE(r.feasible);
+  EXPECT_EQ(r.check, FailedCheck::NON_FINITE);
+  EXPECT_EQ(r.point_index, 2u);
+}
+
+TEST(TrajectoryValidatorCore, InfVelocityFails)
+{
+  TrajectoryValidatorCore core{ValidatorParams{}};
+  auto traj = feasibleTraj();
+  traj[1].velocity_mps = std::numeric_limits<double>::infinity();
+  const auto r = core.validate(traj, egoAt(traj.front()));
+  EXPECT_FALSE(r.feasible);
+  EXPECT_EQ(r.check, FailedCheck::NON_FINITE);
 }
 }  // namespace
