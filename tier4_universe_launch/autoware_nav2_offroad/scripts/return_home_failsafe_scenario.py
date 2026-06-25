@@ -28,7 +28,7 @@ Scenario flow:
 
 Usage (inside the running sim, CycloneDDS env):
   python3 return_home_failsafe_scenario.py \\
-      --home-x 0.0 --home-y 0.0 \\
+      --init-x 0.0 --init-y 0.0 \\
       --dx 30 --dy 0 --yaw 1.5708 \\
       --drive-timeout 60 --timeout 120
 """
@@ -175,6 +175,7 @@ class ReturnHomeScenario(Node):
         # 3. Call set_home
         self.get_logger().info("Calling /return_home/set_home ...")
         if not self.call_trigger(self.set_home_cli, "/return_home/set_home"):
+            # Deliberate: scenario harness continues best-effort so it still reports the resulting error.
             self.get_logger().warn("set_home returned failure (proceeding anyway)")
 
         # 4. Drive out: publish a goal offset from home
