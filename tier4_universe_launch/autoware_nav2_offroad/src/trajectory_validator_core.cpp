@@ -162,6 +162,32 @@ ValidationResult TrajectoryValidatorCore::validate(
     }
   }
 
+  // 7. Continuity from current pose (only when ego is valid).
+  if (ego.valid) {
+    const TrajPoint & p0 = traj.front();
+    const double pos_gap = std::hypot(ego.pose.x - p0.x, ego.pose.y - p0.y);
+    if (pos_gap > p.max_position_gap_m) {
+      return fail(
+        FailedCheck::CONTINUITY, 0, pos_gap, p.max_position_gap_m,
+        "position gap " + std::to_string(pos_gap) + " m exceeds max " +
+          std::to_string(p.max_position_gap_m));
+    }
+    const double yaw_gap = std::fabs(normalizeAngle(ego.pose.yaw - p0.yaw));
+    if (yaw_gap > p.max_yaw_gap_rad) {
+      return fail(
+        FailedCheck::CONTINUITY, 0, yaw_gap, p.max_yaw_gap_rad,
+        "yaw gap " + std::to_string(yaw_gap) + " rad exceeds max " +
+          std::to_string(p.max_yaw_gap_rad));
+    }
+    const double vel_gap = std::fabs(ego.velocity_mps - p0.velocity_mps);
+    if (vel_gap > p.max_velocity_step_mps) {
+      return fail(
+        FailedCheck::CONTINUITY, 0, vel_gap, p.max_velocity_step_mps,
+        "velocity step " + std::to_string(vel_gap) + " m/s exceeds max " +
+          std::to_string(p.max_velocity_step_mps));
+    }
+  }
+
   return ValidationResult{};  // feasible
 }
 

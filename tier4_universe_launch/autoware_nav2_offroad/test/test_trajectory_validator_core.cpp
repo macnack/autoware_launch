@@ -176,4 +176,52 @@ TEST(TrajectoryValidatorCore, OverLateralAccelFails)
   EXPECT_EQ(r.point_index, 0u);
   EXPECT_DOUBLE_EQ(r.worst_value, 4.0);
 }
+
+TEST(TrajectoryValidatorCore, PositionDiscontinuityFails)
+{
+  ValidatorParams p;
+  p.max_position_gap_m = 2.0;
+  TrajectoryValidatorCore core{p};
+  auto traj = feasibleTraj();
+  EgoState ego = egoAt(traj.front());
+  ego.pose.x = 5.0;  // 5 m from first point
+  const auto r = core.validate(traj, ego);
+  EXPECT_FALSE(r.feasible);
+  EXPECT_EQ(r.check, FailedCheck::CONTINUITY);
+}
+
+TEST(TrajectoryValidatorCore, YawDiscontinuityWrapsAround)
+{
+  ValidatorParams p;
+  p.max_yaw_gap_rad = 0.5;
+  TrajectoryValidatorCore core{p};
+  auto traj = feasibleTraj();
+  EgoState ego = egoAt(traj.front());
+  ego.pose.yaw = 3.0;  // ~3 rad from 0; wrapped gap is large
+  const auto r = core.validate(traj, ego);
+  EXPECT_FALSE(r.feasible);
+  EXPECT_EQ(r.check, FailedCheck::CONTINUITY);
+}
+
+TEST(TrajectoryValidatorCore, VelocityStepFails)
+{
+  ValidatorParams p;
+  p.max_velocity_step_mps = 1.0;
+  TrajectoryValidatorCore core{p};
+  auto traj = feasibleTraj(4, 1.0);
+  EgoState ego = egoAt(traj.front());
+  ego.velocity_mps = 3.0;  // step of 2 m/s vs first point's 1 m/s
+  const auto r = core.validate(traj, ego);
+  EXPECT_FALSE(r.feasible);
+  EXPECT_EQ(r.check, FailedCheck::CONTINUITY);
+}
+
+TEST(TrajectoryValidatorCore, InvalidEgoSkipsContinuity)
+{
+  TrajectoryValidatorCore core{ValidatorParams{}};
+  auto traj = feasibleTraj();
+  EgoState ego;  // valid == false
+  const auto r = core.validate(traj, ego);
+  EXPECT_TRUE(r.feasible);  // continuity not evaluated without a valid ego
+}
 }  // namespace
