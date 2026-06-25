@@ -190,6 +190,7 @@ install(DIRECTORY
 
 install(PROGRAMS
   scripts/offroad_goal_scenario.py
+  scripts/return_home_failsafe_scenario.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

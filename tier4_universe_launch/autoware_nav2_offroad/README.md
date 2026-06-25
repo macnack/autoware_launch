@@ -171,6 +171,61 @@ Key bridge parameters:
 | `goal_topic` | `/planning/offroad_goal` | Goal topic (separate from on-road mission planner) |
 | `trajectory_topic` | `/nav2_offroad/planning/trajectory` | Output trajectory topic (fed into the mux) |
 
+## Return-To-Home (failsafe)
+
+The `return_home_node` adds a **free-plan shortest-path return** to a recorded home pose over the SLAM occupancy map. It reuses the same off-road single-goal autonomous flow as the rest of this package (Nav2 path planning → bridge → trajectory → vehicle_cmd_gate) and is completely independent of any Teach & Repeat work.
+
+### What it does
+
+1. **Record home** — the operator calls `/return_home/set_home` (or clicks the **Set Home** button in the RViz OffroadModePanel) at the desired home position. The node stores the current ego pose from `/localization/kinematic_state`.
+2. **Trigger return** — `/return_home/return_home` plans a path from the current position back to the stored home and publishes a `PoseStamped` on `/planning/offroad_goal`. The existing bridge + Nav2 planner executes the path.
+3. **Cancel** — `/return_home/cancel_return` publishes `Bool(true)` on `/planning/offroad_cancel` to abort the current goal; the vehicle performs a safe stop.
+
+Status is published on `/return_home/status` (`autoware_nav2_offroad_msgs/msg/ReturnHomeState`, `result` field: `IDLE=0`, `RUNNING=1`, `REACHED=2`, `FAILED=3`). Diagnostic markers are on `/return_home/markers`.
+
+**v1 scope:** manual trigger only. An automatic comms-loss watchdog (configurable heartbeat topic + timeout → auto trigger) is planned in the backlog.
+
+### Using the SLAM map as the costmap (`occupancy_grid_source:=slam`)
+
+For RTH to plan over real terrain (walls, obstacles recorded during mapping), launch with:
+
+```bash
+ros2 launch autoware_nav2_offroad planning_simulator.launch.xml \
+  occupancy_grid_source:=slam \
+  ...
+```
+
+This routes the SLAM `/map` topic through `slam_map_relay` into the Nav2 global costmap, with `track_unknown_space:=true` so the planner only uses explored space. Without a SLAM source, the default free-space map allows planning but ignores real obstacles.
+
+> **Note:** enabling `occupancy_grid_source:=slam` sets `track_unknown_space:=true` globally in the Nav2 global costmap. This means that for `occupancy_grid_source:=perception` unknown cells are treated as obstacles. If you want the previous behavior (unknown → free) when using perception, set `unknown_as_free:=true` in the relay's param file (`config/perception_occupancy_relay.param.yaml`).
+
+### Services and RViz controls
+
+| Service | Type | Description |
+|---------|------|-------------|
+| `/return_home/set_home` | `std_srvs/Trigger` | Record current ego pose as home |
+| `/return_home/return_home` | `std_srvs/Trigger` | Trigger autonomous return to home |
+| `/return_home/cancel_return` | `std_srvs/Trigger` | Cancel the current return |
+
+All three services also appear as buttons in the **OffroadModePanel** RViz plugin.
+
+### Launch arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `launch_return_home` | `true` | Set to `false` to skip the return_home_node |
+| `return_home_param_file` | `config/return_home.param.yaml` | Node parameters (goal topic, reach tolerance, etc.) |
+
+### Scenario script
+
+`scripts/return_home_failsafe_scenario.py` provides a reproducible test: it records home at the current ego pose, calls `set_home`, drives the vehicle out by publishing an offset goal, waits for the vehicle to reach the out-position, calls `return_home`, and then polls `/return_home/status` until `result == REACHED` (or timeout). Final position and heading errors relative to home are printed.
+
+```bash
+python3 return_home_failsafe_scenario.py --dx 30 --dy 0 --drive-timeout 60 --timeout 120
+```
+
+Full end-to-end verification requires a running simulation with a SLAM `/map` source (not runnable headless).
+
 ## Tests
 
 ```bash

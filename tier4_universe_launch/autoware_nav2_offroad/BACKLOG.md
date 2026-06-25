@@ -113,6 +113,19 @@ without the path curving there.
   the planner `analytic_expansion_*` so the path ends with a longer aligned segment
 - average several scenario runs (single runs are noisy)
 
+## 8. Automatic comms-loss watchdog for Return-To-Home
+
+**Trigger:** no heartbeat message received on a configurable topic within a configurable timeout → automatically call `return_home` + engage the vehicle autonomously.
+
+**What needs building:**
+
+- `return_home_node` parameter: `watchdog_topic` (string, e.g. `/ground_station/heartbeat`), `watchdog_timeout_sec` (float, e.g. 5.0), `watchdog_enabled` (bool, default false so v1 is manual-only).
+- On each heartbeat message the node resets a timer; on expiry it calls its own internal `return_home` logic and additionally sends an `EngageCommand` to the Autoware API to engage autonomous mode (or publishes to the configured engage topic).
+- The operator must have called `set_home` before the watchdog fires; if no home is set the watchdog logs a fatal error but does not trigger (safe default).
+- Expose `watchdog_armed` status in `ReturnHomeState` so operators can monitor it in the RViz panel.
+
+**Cross-reference:** once the vehicle is autonomously returning, dynamic-obstacle avoidance during the return is the same open problem as item 4 (real-vehicle costmap / local costmap with obstacle layers) — those two items should be addressed together.
+
 ## 6. Reverse / Reeds-Shepp support
 
 > **Prioritized next step** — this is the agreed follow-up to drive down the
