@@ -46,13 +46,14 @@ global_costmap:
       use_sim_time: false
       resolution: 0.5
       robot_radius: 1.5
-      track_unknown_space: false
+      track_unknown_space: true
       plugins: ["static_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_topic: /nav2_offroad/costmap/occupancy_grid
         map_subscribe_transient_local: true
         subscribe_to_updates: false
+        track_unknown_space: true
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0

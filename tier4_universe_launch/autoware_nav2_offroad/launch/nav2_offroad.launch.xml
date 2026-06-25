@@ -13,10 +13,12 @@
 
   <!-- Source of the occupancy grid that feeds the Nav2 costmap:
          free       -> free_map_publisher (all-free map, for sim / open ground)
-         perception -> relay the real Autoware perception occupancy grid -->
-  <arg name="occupancy_grid_source" default="free" description="free | perception"/>
+         perception -> relay the real Autoware perception occupancy grid
+         slam       -> relay the SLAM map (/map) as the costmap input -->
+  <arg name="occupancy_grid_source" default="free" description="free | perception | slam"/>
   <arg name="costmap_occupancy_topic" default="/nav2_offroad/costmap/occupancy_grid"/>
   <arg name="perception_occupancy_topic" default="/perception/occupancy_grid_map/map"/>
+  <arg name="slam_relay_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/slam_map_relay.param.yaml"/>
 
   <node pkg="autoware_nav2_offroad" exec="free_map_publisher_node" name="free_map_publisher" output="screen"
         if="$(eval '&quot;$(var occupancy_grid_source)&quot;==&quot;free&quot;')">
@@ -31,6 +33,11 @@
     <param name="input_topic" value="$(var perception_occupancy_topic)"/>
     <param name="output_topic" value="$(var costmap_occupancy_topic)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <node pkg="autoware_nav2_offroad" exec="perception_occupancy_relay_node" name="slam_map_relay" output="screen"
+        if="$(eval '&quot;$(var occupancy_grid_source)&quot;==&quot;slam&quot;')">
+    <param from="$(var slam_relay_param_file)"/>
   </node>
 
   <node pkg="nav2_planner" exec="planner_server" name="planner_server" output="screen">
