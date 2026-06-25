@@ -311,6 +311,8 @@ private:
   {
     autoware_vehicle_msgs::msg::GearCommand gear_cmd;
     gear_cmd.stamp = now();
+    // TODO(backlog-6): emit REVERSE when the published trajectory direction is
+    // negative; this needs end-to-end validation with trajectory_follower/sim.
     gear_cmd.command = should_drive ? autoware_vehicle_msgs::msg::GearCommand::DRIVE
                                     : autoware_vehicle_msgs::msg::GearCommand::PARK;
     gear_cmd_publisher_->publish(gear_cmd);

@@ -31,6 +31,21 @@ namespace
 constexpr double kStopTimeStepSec = 0.1;
 constexpr size_t kControllerMinTrajectoryPoints = 3;
 
+enum class MotionDirection
+{
+  kForward,
+  kReverse,
+};
+
+struct TrajectoryPoseInfo
+{
+  geometry_msgs::msg::Pose pose;
+  double heading_yaw{0.0};
+  MotionDirection direction{MotionDirection::kForward};
+  bool is_cusp{false};
+  size_t source_index{0};
+};
+
 bool isNearlyZero(const double value)
 {
   return std::fabs(value) < 1e-6;
@@ -113,6 +128,20 @@ double estimateYaw(
   }
 
   return std::atan2(dy, dx);
+}
+
+MotionDirection detectMotionDirection(
+  const geometry_msgs::msg::Pose & from, const geometry_msgs::msg::Pose & to)
+{
+  const double dx = to.position.x - from.position.x;
+  const double dy = to.position.y - from.position.y;
+  if (isNearlyZero(dx) && isNearlyZero(dy)) {
+    return MotionDirection::kForward;
+  }
+
+  const double heading_yaw = tf2::getYaw(from.orientation);
+  const double dot = dx * std::cos(heading_yaw) + dy * std::sin(heading_yaw);
+  return dot < 0.0 ? MotionDirection::kReverse : MotionDirection::kForward;
 }
 
 std::vector<double> cumulativeDistances(const std::vector<geometry_msgs::msg::Pose> & poses)
@@ -261,6 +290,119 @@ autoware_planning_msgs::msg::TrajectoryPoint createZeroSpeedPoint(
   point.rear_wheel_angle_rad = 0.0;
   return point;
 }
+
+double blendPointYaw(
+  const double base_yaw, const double remaining_distance,
+  const std::optional<double> & goal_yaw,
+  const autoware::nav2_offroad::TrajectoryBuilderParams & params)
+{
+  if (!goal_yaw || params.goal_heading_blend_distance_m <= 1e-6) {
+    return base_yaw;
+  }
+
+  const double ratio =
+    std::clamp(remaining_distance / params.goal_heading_blend_distance_m, 0.0, 1.0);
+  return *goal_yaw + ratio * normalizeAngle(base_yaw - *goal_yaw);
+}
+
+autoware_planning_msgs::msg::Trajectory createForwardOnlyTrajectory(
+  const rclcpp::Time & stamp, const nav_msgs::msg::Path & path,
+  const std::vector<geometry_msgs::msg::Pose> & sampled_for_output,
+  const autoware::nav2_offroad::TrajectoryBuilderParams & params, const std::optional<double> & goal_yaw)
+{
+  autoware_planning_msgs::msg::Trajectory trajectory;
+  trajectory.header = path.header;
+  trajectory.header.stamp = stamp;
+
+  const auto cumulative = cumulativeDistances(sampled_for_output);
+  const double total_length = cumulative.back();
+
+  trajectory.points.reserve(sampled_for_output.size());
+
+  double elapsed_sec = 0.0;
+  double previous_velocity = 0.0;
+
+  for (size_t i = 0; i < sampled_for_output.size(); ++i) {
+    autoware_planning_msgs::msg::TrajectoryPoint point;
+    point.pose = sampled_for_output[i];
+
+    ensureValidOrientation(point.pose);
+    const double fallback_yaw = tf2::getYaw(point.pose.orientation);
+    const double tangent_yaw = estimateYaw(sampled_for_output, i, fallback_yaw);
+
+    const double remaining = total_length - cumulative[i];
+    const double point_yaw =
+      blendPointYaw(tangent_yaw, remaining, goal_yaw, params);
+    point.pose.orientation = createQuaternionFromYaw(point_yaw);
+
+    double velocity =
+      params.cruise_speed_mps * std::clamp(remaining / params.goal_taper_distance_m, 0.0, 1.0);
+    if (i == sampled_for_output.size() - 1) {
+      velocity = 0.0;
+    }
+
+    point.longitudinal_velocity_mps = static_cast<float>(velocity);
+    point.lateral_velocity_mps = 0.0F;
+    point.acceleration_mps2 = 0.0F;
+    point.heading_rate_rps = 0.0F;
+    point.front_wheel_angle_rad = 0.0F;
+    point.rear_wheel_angle_rad = 0.0F;
+
+    if (i > 0) {
+      const double segment = cumulative[i] - cumulative[i - 1];
+      const double average_velocity = std::max(0.1, 0.5 * (previous_velocity + velocity));
+      elapsed_sec += segment / average_velocity;
+    }
+    point.time_from_start = toDurationMsg(elapsed_sec);
+
+    previous_velocity = velocity;
+    trajectory.points.push_back(point);
+  }
+
+  if (goal_yaw && !trajectory.points.empty()) {
+    trajectory.points.back().pose.orientation = createQuaternionFromYaw(*goal_yaw);
+  }
+
+  return trajectory;
+}
+
+std::vector<TrajectoryPoseInfo> buildReverseAwarePoseInfos(
+  const std::vector<geometry_msgs::msg::Pose> & sampled_for_output)
+{
+  std::vector<TrajectoryPoseInfo> pose_infos;
+  if (sampled_for_output.size() < 2) {
+    return pose_infos;
+  }
+
+  std::vector<MotionDirection> segment_directions;
+  segment_directions.reserve(sampled_for_output.size() - 1);
+  for (size_t i = 0; i + 1 < sampled_for_output.size(); ++i) {
+    segment_directions.push_back(
+      detectMotionDirection(sampled_for_output[i], sampled_for_output[i + 1]));
+  }
+
+  pose_infos.reserve(sampled_for_output.size() + segment_directions.size());
+  for (size_t i = 0; i < sampled_for_output.size(); ++i) {
+    auto pose = sampled_for_output[i];
+    ensureValidOrientation(pose);
+
+    const double heading_yaw = tf2::getYaw(pose.orientation);
+    const MotionDirection direction =
+      (i + 1 < sampled_for_output.size()) ? segment_directions[i] : segment_directions.back();
+    const bool is_direction_switch =
+      i > 0 && i + 1 < sampled_for_output.size() &&
+      segment_directions[i] != segment_directions[i - 1];
+
+    if (is_direction_switch) {
+      pose_infos.push_back(TrajectoryPoseInfo{pose, heading_yaw, direction, true, i});
+      continue;
+    }
+
+    pose_infos.push_back(TrajectoryPoseInfo{pose, heading_yaw, direction, false, i});
+  }
+
+  return pose_infos;
+}
 }  // namespace
 
 namespace autoware::nav2_offroad
@@ -317,59 +459,70 @@ autoware_planning_msgs::msg::Trajectory TrajectoryBuilder::createTrajectoryFromP
   const rclcpp::Time & stamp, const nav_msgs::msg::Path & path,
   const std::optional<double> & goal_yaw) const
 {
-  autoware_planning_msgs::msg::Trajectory trajectory;
-  trajectory.header = path.header;
-  trajectory.header.stamp = stamp;
-
   const auto sampled = resamplePath(path, params_.resample_interval_m);
   if (sampled.size() < 2) {
+    autoware_planning_msgs::msg::Trajectory trajectory;
+    trajectory.header = path.header;
+    trajectory.header.stamp = stamp;
     return trajectory;
   }
 
   auto sampled_for_output =
     removeCloseConsecutivePoses(sampled, params_.min_trajectory_point_distance_m);
   if (sampled_for_output.size() < 2) {
+    autoware_planning_msgs::msg::Trajectory trajectory;
+    trajectory.header = path.header;
+    trajectory.header.stamp = stamp;
     return trajectory;
   }
 
   ensureMinimumSampleCount(
     sampled_for_output, kControllerMinTrajectoryPoints, params_.min_trajectory_point_distance_m);
 
+  bool has_reverse_segment = false;
+  for (size_t i = 0; i + 1 < sampled_for_output.size(); ++i) {
+    auto pose = sampled_for_output[i];
+    ensureValidOrientation(pose);
+    if (detectMotionDirection(pose, sampled_for_output[i + 1]) == MotionDirection::kReverse) {
+      has_reverse_segment = true;
+      break;
+    }
+  }
+
+  if (!has_reverse_segment) {
+    return createForwardOnlyTrajectory(stamp, path, sampled_for_output, params_, goal_yaw);
+  }
+
+  autoware_planning_msgs::msg::Trajectory trajectory;
+  trajectory.header = path.header;
+  trajectory.header.stamp = stamp;
+
   const auto cumulative = cumulativeDistances(sampled_for_output);
   const double total_length = cumulative.back();
+  const auto pose_infos = buildReverseAwarePoseInfos(sampled_for_output);
 
-  trajectory.points.reserve(sampled_for_output.size());
+  trajectory.points.reserve(pose_infos.size());
 
   double elapsed_sec = 0.0;
   double previous_velocity = 0.0;
+  geometry_msgs::msg::Point previous_position = pose_infos.front().pose.position;
 
-  for (size_t i = 0; i < sampled_for_output.size(); ++i) {
+  for (size_t i = 0; i < pose_infos.size(); ++i) {
+    const auto & pose_info = pose_infos[i];
     autoware_planning_msgs::msg::TrajectoryPoint point;
-    point.pose = sampled_for_output[i];
+    point.pose = pose_info.pose;
 
-    ensureValidOrientation(point.pose);
-    const double fallback_yaw = tf2::getYaw(point.pose.orientation);
-    const double tangent_yaw = estimateYaw(sampled_for_output, i, fallback_yaw);
-
-    const double remaining = total_length - cumulative[i];
-
-    // Blend the heading from the path tangent (far from the goal) to the goal
-    // heading (at the goal) over the final approach, so the controller rotates
-    // into the requested orientation along the way instead of seeing a single
-    // end-point jump it would track too late. Heading is the metric that matters
-    // at an off-road goal; some lateral give on the approach is acceptable.
-    double point_yaw = tangent_yaw;
-    if (goal_yaw && params_.goal_heading_blend_distance_m > 1e-6) {
-      const double ratio =
-        std::clamp(remaining / params_.goal_heading_blend_distance_m, 0.0, 1.0);
-      point_yaw = *goal_yaw + ratio * normalizeAngle(tangent_yaw - *goal_yaw);
-    }
+    const double remaining = total_length - cumulative[pose_info.source_index];
+    const double point_yaw =
+      blendPointYaw(pose_info.heading_yaw, remaining, goal_yaw, params_);
     point.pose.orientation = createQuaternionFromYaw(point_yaw);
 
-    double velocity =
-      params_.cruise_speed_mps * std::clamp(remaining / params_.goal_taper_distance_m, 0.0, 1.0);
-    if (i == sampled_for_output.size() - 1) {
-      velocity = 0.0;
+    double velocity = 0.0;
+    if (!pose_info.is_cusp && i + 1 < pose_infos.size()) {
+      const double velocity_magnitude =
+        params_.cruise_speed_mps * std::clamp(remaining / params_.goal_taper_distance_m, 0.0, 1.0);
+      velocity =
+        pose_info.direction == MotionDirection::kReverse ? -velocity_magnitude : velocity_magnitude;
     }
 
     point.longitudinal_velocity_mps = static_cast<float>(velocity);
@@ -380,18 +533,18 @@ autoware_planning_msgs::msg::Trajectory TrajectoryBuilder::createTrajectoryFromP
     point.rear_wheel_angle_rad = 0.0F;
 
     if (i > 0) {
-      const double segment = cumulative[i] - cumulative[i - 1];
-      const double average_velocity = std::max(0.1, 0.5 * (previous_velocity + velocity));
+      const double segment = distance2d(previous_position, point.pose.position);
+      const double average_velocity =
+        std::max(0.1, 0.5 * (std::fabs(previous_velocity) + std::fabs(velocity)));
       elapsed_sec += segment / average_velocity;
     }
     point.time_from_start = toDurationMsg(elapsed_sec);
 
     previous_velocity = velocity;
+    previous_position = point.pose.position;
     trajectory.points.push_back(point);
   }
 
-  // Belt-and-braces: pin the final point exactly to the goal heading (the blend
-  // already drives it there as remaining->0, this guards against rounding).
   if (goal_yaw && !trajectory.points.empty()) {
     trajectory.points.back().pose.orientation = createQuaternionFromYaw(*goal_yaw);
   }
