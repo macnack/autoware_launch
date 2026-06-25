@@ -374,31 +374,31 @@ std::vector<TrajectoryPoseInfo> buildReverseAwarePoseInfos(
     return pose_infos;
   }
 
-  std::vector<MotionDirection> segment_directions;
-  segment_directions.reserve(sampled_for_output.size() - 1);
-  for (size_t i = 0; i + 1 < sampled_for_output.size(); ++i) {
-    segment_directions.push_back(
-      detectMotionDirection(sampled_for_output[i], sampled_for_output[i + 1]));
+  // Validate orientations once up front so direction detection here is consistent
+  // with the has_reverse_segment pre-scan and the per-pose heading (all read the
+  // pose orientation via tf2::getYaw); a degenerate quaternion must not make the
+  // two disagree.
+  std::vector<geometry_msgs::msg::Pose> poses = sampled_for_output;
+  for (auto & pose : poses) {
+    ensureValidOrientation(pose);
   }
 
-  pose_infos.reserve(sampled_for_output.size() + segment_directions.size());
-  for (size_t i = 0; i < sampled_for_output.size(); ++i) {
-    auto pose = sampled_for_output[i];
-    ensureValidOrientation(pose);
+  std::vector<MotionDirection> segment_directions;
+  segment_directions.reserve(poses.size() - 1);
+  for (size_t i = 0; i + 1 < poses.size(); ++i) {
+    segment_directions.push_back(detectMotionDirection(poses[i], poses[i + 1]));
+  }
 
-    const double heading_yaw = tf2::getYaw(pose.orientation);
+  pose_infos.reserve(poses.size());
+  for (size_t i = 0; i < poses.size(); ++i) {
+    const double heading_yaw = tf2::getYaw(poses[i].orientation);
     const MotionDirection direction =
-      (i + 1 < sampled_for_output.size()) ? segment_directions[i] : segment_directions.back();
+      (i + 1 < poses.size()) ? segment_directions[i] : segment_directions.back();
     const bool is_direction_switch =
-      i > 0 && i + 1 < sampled_for_output.size() &&
-      segment_directions[i] != segment_directions[i - 1];
+      i > 0 && i + 1 < poses.size() && segment_directions[i] != segment_directions[i - 1];
 
-    if (is_direction_switch) {
-      pose_infos.push_back(TrajectoryPoseInfo{pose, heading_yaw, direction, true, i});
-      continue;
-    }
-
-    pose_infos.push_back(TrajectoryPoseInfo{pose, heading_yaw, direction, false, i});
+    pose_infos.push_back(
+      TrajectoryPoseInfo{poses[i], heading_yaw, direction, is_direction_switch, i});
   }
 
   return pose_infos;
@@ -503,6 +503,17 @@ autoware_planning_msgs::msg::Trajectory TrajectoryBuilder::createTrajectoryFromP
 
   trajectory.points.reserve(pose_infos.size());
 
+  // Arc-length positions of the cusps (forward<->reverse switches). Velocity must
+  // taper to zero approaching a cusp and ramp back up after it; otherwise the
+  // profile would jump cruise -> 0 -> cruise at the cusp, which the controller
+  // cannot track (the vehicle cannot stop instantaneously to reverse).
+  std::vector<double> cusp_arc_positions;
+  for (const auto & info : pose_infos) {
+    if (info.is_cusp) {
+      cusp_arc_positions.push_back(cumulative[info.source_index]);
+    }
+  }
+
   double elapsed_sec = 0.0;
   double previous_velocity = 0.0;
   geometry_msgs::msg::Point previous_position = pose_infos.front().pose.position;
@@ -519,8 +530,15 @@ autoware_planning_msgs::msg::Trajectory TrajectoryBuilder::createTrajectoryFromP
 
     double velocity = 0.0;
     if (!pose_info.is_cusp && i + 1 < pose_infos.size()) {
+      // Taper by distance to the goal AND to the nearest cusp, whichever is closer.
+      const double arc = cumulative[pose_info.source_index];
+      double taper_distance = remaining;
+      for (const double cusp_arc : cusp_arc_positions) {
+        taper_distance = std::min(taper_distance, std::fabs(arc - cusp_arc));
+      }
       const double velocity_magnitude =
-        params_.cruise_speed_mps * std::clamp(remaining / params_.goal_taper_distance_m, 0.0, 1.0);
+        params_.cruise_speed_mps *
+        std::clamp(taper_distance / params_.goal_taper_distance_m, 0.0, 1.0);
       velocity =
         pose_info.direction == MotionDirection::kReverse ? -velocity_magnitude : velocity_magnitude;
     }
