@@ -126,6 +126,26 @@ ament_target_dependencies(nav2_path_to_trajectory_bridge_node
   tf2_geometry_msgs
 )
 
+add_executable(trajectory_validator_node
+  src/trajectory_validator_node.cpp
+)
+target_link_libraries(trajectory_validator_node
+  autoware_nav2_offroad_trajectory_validator_core
+  autoware_nav2_offroad_trajectory_builder
+)
+target_include_directories(trajectory_validator_node PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+ament_target_dependencies(trajectory_validator_node
+  autoware_planning_msgs
+  diagnostic_updater
+  geometry_msgs
+  nav_msgs
+  rclcpp
+  tf2
+  tf2_geometry_msgs
+)
+
 add_executable(trajectory_mode_manager_node
   src/trajectory_mode_manager_node.cpp
 )
@@ -183,6 +203,7 @@ install(TARGETS
   return_home_node
   trajectory_mode_manager_node
   trajectory_mode_mux_node
+  trajectory_validator_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
