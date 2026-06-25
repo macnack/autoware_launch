@@ -136,4 +136,28 @@ TEST(TrajectoryValidatorCore, OverLongitudinalAccelFails)
   EXPECT_EQ(r.point_index, 2u);
   EXPECT_DOUBLE_EQ(r.worst_value, 3.5);
 }
+
+TEST(TrajectoryValidatorCore, OverCurvatureFails)
+{
+  ValidatorParams p;
+  p.max_curvature_1pm = 1.0;       // min radius 1 m
+  p.max_lateral_accel_mps2 = 1e9;  // disable lateral so curvature is the failure
+  TrajectoryValidatorCore core{p};
+  // Two points 0.5 m apart with a 1.0 rad heading change => kappa = 2.0 /m > 1.0.
+  std::vector<TrajPoint> traj{mk(0.0, 0.0, 0.0, 0.5), mk(0.5, 0.0, 1.0, 0.5)};
+  const auto r = core.validate(traj, egoAt(traj.front()));
+  EXPECT_FALSE(r.feasible);
+  EXPECT_EQ(r.check, FailedCheck::CURVATURE);
+  EXPECT_EQ(r.point_index, 0u);
+}
+
+TEST(TrajectoryValidatorCore, StackedPointsDoNotDivideByZero)
+{
+  ValidatorParams p;
+  TrajectoryValidatorCore core{p};
+  // Two coincident points (ds ~ 0) with a heading change: curvature is skipped.
+  std::vector<TrajPoint> traj{mk(0.0, 0.0, 0.0, 0.0), mk(0.0, 0.0, 1.0, 0.0)};
+  const auto r = core.validate(traj, egoAt(traj.front()));
+  EXPECT_TRUE(r.feasible);  // no divide-by-zero, no spurious curvature failure
+}
 }  // namespace

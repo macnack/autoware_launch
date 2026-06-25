@@ -40,6 +40,25 @@ bool allFinite(const TrajPoint & q)
   return std::isfinite(q.x) && std::isfinite(q.y) && std::isfinite(q.yaw) &&
          std::isfinite(q.velocity_mps) && std::isfinite(q.acceleration_mps2);
 }
+
+constexpr double kMinSegmentLength = 1e-6;  // m; avoids divide-by-zero on stacked points
+
+double normalizeAngle(double a)
+{
+  while (a > M_PI) {
+    a -= 2.0 * M_PI;
+  }
+  while (a < -M_PI) {
+    a += 2.0 * M_PI;
+  }
+  return a;
+}
+
+// Arc length of segment i->i+1.
+double segmentLength(const TrajPoint & a, const TrajPoint & b)
+{
+  return std::hypot(b.x - a.x, b.y - a.y);
+}
 }  // namespace
 
 std::string toString(FailedCheck check)
@@ -109,6 +128,21 @@ ValidationResult TrajectoryValidatorCore::validate(
         FailedCheck::LONGITUDINAL_ACCEL, i, a, p.max_longitudinal_accel_mps2,
         "|accel| " + std::to_string(a) + " m/s^2 exceeds max " +
           std::to_string(p.max_longitudinal_accel_mps2) + " at point " + std::to_string(i));
+    }
+  }
+
+  // 5. Curvature (per segment; stacked points are skipped).
+  for (std::size_t i = 0; i + 1 < traj.size(); ++i) {
+    const double ds = segmentLength(traj[i], traj[i + 1]);
+    if (ds <= kMinSegmentLength) {
+      continue;
+    }
+    const double kappa = std::fabs(normalizeAngle(traj[i + 1].yaw - traj[i].yaw)) / ds;
+    if (kappa > p.max_curvature_1pm) {
+      return fail(
+        FailedCheck::CURVATURE, i, kappa, p.max_curvature_1pm,
+        "curvature " + std::to_string(kappa) + " /m exceeds max " +
+          std::to_string(p.max_curvature_1pm) + " on segment " + std::to_string(i));
     }
   }
 
