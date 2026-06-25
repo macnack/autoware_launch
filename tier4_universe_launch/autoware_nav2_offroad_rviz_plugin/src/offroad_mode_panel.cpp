@@ -231,12 +231,12 @@ void OffroadModePanel::onCancelReturn() { callReturnHomeTrigger("/return_home/ca
 
 void OffroadModePanel::onReturnHomeStatus(ReturnHomeState::ConstSharedPtr msg)
 {
-  const char * rr[] = {"NONE", "IN_PROGRESS", "REACHED", "CANCELED"};
+  const char * rr[] = {"NONE", "IN_PROGRESS", "REACHED", "CANCELED", "FAILED"};
   rth_status_label_->setText(QString::fromStdString(
     std::string(msg->has_home ? "home set" : "no home") +
     (msg->returning ? " | RETURNING" : "") +
     " | " + QString::number(msg->distance_to_home_m, 'f', 1).toStdString() + " m | " +
-    rr[msg->result < 4 ? msg->result : 0]));
+    rr[msg->result < 5 ? msg->result : 0]));
 }
 
 }  // namespace autoware::nav2_offroad::rviz_plugin

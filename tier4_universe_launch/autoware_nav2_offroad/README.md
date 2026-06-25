@@ -181,7 +181,7 @@ The `return_home_node` adds a **free-plan shortest-path return** to a recorded h
 2. **Trigger return** — `/return_home/return_home` plans a path from the current position back to the stored home and publishes a `PoseStamped` on `/planning/offroad_goal`. The existing bridge + Nav2 planner executes the path.
 3. **Cancel** — `/return_home/cancel_return` publishes `Bool(true)` on `/planning/offroad_cancel` to abort the current goal; the vehicle performs a safe stop.
 
-Status is published on `/return_home/status` (`autoware_nav2_offroad_msgs/msg/ReturnHomeState`, `result` field: `IDLE=0`, `RUNNING=1`, `REACHED=2`, `FAILED=3`). Diagnostic markers are on `/return_home/markers`.
+Status is published on `/return_home/status` (`autoware_nav2_offroad_msgs/msg/ReturnHomeState`, `result` field: `NONE=0`, `IN_PROGRESS=1`, `REACHED=2`, `CANCELED=3`, `FAILED=4`). The node reports `FAILED` if the vehicle does not reach home within `return_timeout_s` (default 120 s). RTH drives via the autonomous off-road flow (Nav2 → bridge → vehicle_cmd_gate), so the stack must already be engaged in autonomous mode for motion — publishing the goal does not itself engage the gate. Diagnostic markers are on `/return_home/markers`.
 
 **v1 scope:** manual trigger only. An automatic comms-loss watchdog (configurable heartbeat topic + timeout → auto trigger) is planned in the backlog.
 

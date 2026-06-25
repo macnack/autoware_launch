@@ -44,6 +44,7 @@ public:
     goal_topic_ = declare_parameter<std::string>("goal_topic", "/planning/offroad_goal");
     cancel_topic_ = declare_parameter<std::string>("cancel_topic", "/planning/offroad_cancel");
     const double rate = declare_parameter<double>("publish_rate_hz", 10.0);
+    return_timeout_s_ = declare_parameter<double>("return_timeout_s", 120.0);
 
     sub_ego_ = create_subscription<nav_msgs::msg::Odometry>(
       "~/input/kinematic_state", rclcpp::QoS(1),
@@ -104,6 +105,7 @@ private:
     pub_goal_->publish(goal);
     returning_ = true;
     result_ = StateMsg::IN_PROGRESS;
+    return_start_time_ = now();
     RCLCPP_INFO(get_logger(), "returning home -> %s", goal_topic_.c_str());
     res->success = true; res->message = "returning home";
   }
@@ -125,6 +127,13 @@ private:
       returning_ = false;
       result_ = StateMsg::REACHED;
       RCLCPP_INFO(get_logger(), "home reached");
+    } else if (returning_ && (now() - return_start_time_).seconds() > return_timeout_s_) {
+      returning_ = false;
+      result_ = StateMsg::FAILED;
+      std_msgs::msg::Bool b; b.data = true; pub_cancel_->publish(b);
+      RCLCPP_WARN(
+        get_logger(), "return-home FAILED: timeout after %.0f s without reaching home",
+        return_timeout_s_);
     }
     publishStatus();
     publishMarkers();
@@ -171,6 +180,8 @@ private:
   geometry_msgs::msg::Quaternion home_quat_{};
   bool returning_{false};
   uint8_t result_{0};  // ReturnHomeState::NONE
+  double return_timeout_s_{120.0};
+  rclcpp::Time return_start_time_{};
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_ego_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pub_goal_;
