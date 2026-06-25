@@ -58,6 +58,14 @@ target_include_directories(autoware_nav2_offroad_mode_manager_core PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 
+add_library(autoware_nav2_offroad_trajectory_validator_core
+  src/trajectory_validator_core.cpp
+)
+target_include_directories(autoware_nav2_offroad_trajectory_validator_core PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
 add_library(autoware_nav2_offroad_return_home_core
   src/return_home_core.cpp
 )
@@ -168,6 +176,7 @@ install(TARGETS
   autoware_nav2_offroad_return_home_core
   autoware_nav2_offroad_occupancy_grid_relay
   autoware_nav2_offroad_trajectory_builder
+  autoware_nav2_offroad_trajectory_validator_core
   free_map_publisher_node
   nav2_path_to_trajectory_bridge_node
   perception_occupancy_relay_node
@@ -219,6 +228,18 @@ if(BUILD_TESTING)
       autoware_nav2_offroad_mode_manager_core
     )
     target_include_directories(test_mode_manager_core PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+  endif()
+
+  ament_add_gtest(test_trajectory_validator_core
+    test/test_trajectory_validator_core.cpp
+  )
+  if(TARGET test_trajectory_validator_core)
+    target_link_libraries(test_trajectory_validator_core
+      autoware_nav2_offroad_trajectory_validator_core
+    )
+    target_include_directories(test_trajectory_validator_core PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
   endif()
