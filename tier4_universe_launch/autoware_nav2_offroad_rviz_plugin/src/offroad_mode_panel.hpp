@@ -19,6 +19,7 @@
 #include <rviz_common/panel.hpp>
 #include <rviz_common/ros_integration/ros_node_abstraction_iface.hpp>
 
+#include <autoware_nav2_offroad_msgs/msg/return_home_state.hpp>
 #include <autoware_nav2_offroad_msgs/msg/trajectory_mode_debug.hpp>
 #include <autoware_nav2_offroad_msgs/msg/trajectory_mode_state.hpp>
 #include <autoware_nav2_offroad_msgs/srv/change_trajectory_mode.hpp>
@@ -45,11 +46,16 @@ private Q_SLOTS:
   void onClickOffroad();
   void onClickOnroad();
   void onRestartNav2();
+  void onSetHome();
+  void onReturnHomeClicked();
+  void onCancelReturn();
 
 private:
   void requestMode(const std::string & target_mode);
   void onStatus(autoware_nav2_offroad_msgs::msg::TrajectoryModeState::ConstSharedPtr msg);
   void onDebug(autoware_nav2_offroad_msgs::msg::TrajectoryModeDebug::ConstSharedPtr msg);
+  void callReturnHomeTrigger(const std::string & service);
+  void onReturnHomeStatus(autoware_nav2_offroad_msgs::msg::ReturnHomeState::ConstSharedPtr msg);
 
   QPushButton * offroad_button_;
   QPushButton * onroad_button_;
@@ -57,12 +63,17 @@ private:
   QLabel * status_label_;
   QLabel * guard_label_;
   QLabel * nav2_label_;
+  QPushButton * set_home_button_;
+  QPushButton * return_home_button_;
+  QPushButton * cancel_return_button_;
+  QLabel * rth_status_label_;
 
   rclcpp::Client<autoware_nav2_offroad_msgs::srv::ChangeTrajectoryMode>::SharedPtr client_;
   rclcpp::Client<nav2_msgs::srv::ManageLifecycleNodes>::SharedPtr lifecycle_client_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr offroad_cancel_pub_;
   rclcpp::Subscription<autoware_nav2_offroad_msgs::msg::TrajectoryModeState>::SharedPtr status_sub_;
   rclcpp::Subscription<autoware_nav2_offroad_msgs::msg::TrajectoryModeDebug>::SharedPtr debug_sub_;
+  rclcpp::Subscription<autoware_nav2_offroad_msgs::msg::ReturnHomeState>::SharedPtr rth_status_sub_;
 
 protected:
   rviz_common::ros_integration::RosNodeAbstractionIface::WeakPtr rviz_ros_node_;

@@ -14,10 +14,13 @@
 
 #include "offroad_mode_panel.hpp"
 
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
+
+#include <std_srvs/srv/trigger.hpp>
 
 #include <cstdio>
 #include <memory>
@@ -38,6 +41,7 @@ using TrajectoryModeState = autoware_nav2_offroad_msgs::msg::TrajectoryModeState
 using TrajectoryModeDebug = autoware_nav2_offroad_msgs::msg::TrajectoryModeDebug;
 using ChangeTrajectoryMode = autoware_nav2_offroad_msgs::srv::ChangeTrajectoryMode;
 using ManageLifecycleNodes = nav2_msgs::srv::ManageLifecycleNodes;
+using ReturnHomeState = autoware_nav2_offroad_msgs::msg::ReturnHomeState;
 
 OffroadModePanel::OffroadModePanel(QWidget * parent) : rviz_common::Panel(parent)
 {
@@ -53,17 +57,39 @@ OffroadModePanel::OffroadModePanel(QWidget * parent) : rviz_common::Panel(parent
   button_layout->addWidget(offroad_button_);
   button_layout->addWidget(onroad_button_);
 
+  // Return To Home group
+  set_home_button_ = new QPushButton("Set Home");
+  return_home_button_ = new QPushButton("Return Home");
+  cancel_return_button_ = new QPushButton("Cancel");
+  rth_status_label_ = new QLabel("RTH: (no status)");
+
+  auto * rth_button_layout = new QHBoxLayout;
+  rth_button_layout->addWidget(set_home_button_);
+  rth_button_layout->addWidget(return_home_button_);
+  rth_button_layout->addWidget(cancel_return_button_);
+
+  auto * rth_group_layout = new QVBoxLayout;
+  rth_group_layout->addLayout(rth_button_layout);
+  rth_group_layout->addWidget(rth_status_label_);
+
+  auto * rth_group = new QGroupBox("Return To Home");
+  rth_group->setLayout(rth_group_layout);
+
   auto * layout = new QVBoxLayout(this);
   layout->addWidget(status_label_);
   layout->addWidget(guard_label_);
   layout->addLayout(button_layout);
   layout->addWidget(restart_nav2_button_);
   layout->addWidget(nav2_label_);
+  layout->addWidget(rth_group);
   setLayout(layout);
 
   connect(offroad_button_, &QPushButton::clicked, this, &OffroadModePanel::onClickOffroad);
   connect(onroad_button_, &QPushButton::clicked, this, &OffroadModePanel::onClickOnroad);
   connect(restart_nav2_button_, &QPushButton::clicked, this, &OffroadModePanel::onRestartNav2);
+  connect(set_home_button_, &QPushButton::clicked, this, &OffroadModePanel::onSetHome);
+  connect(return_home_button_, &QPushButton::clicked, this, &OffroadModePanel::onReturnHomeClicked);
+  connect(cancel_return_button_, &QPushButton::clicked, this, &OffroadModePanel::onCancelReturn);
 }
 
 void OffroadModePanel::onInitialize()
@@ -82,6 +108,9 @@ void OffroadModePanel::onInitialize()
   debug_sub_ = node->create_subscription<TrajectoryModeDebug>(
     kDebugTopic, rclcpp::QoS{1},
     std::bind(&OffroadModePanel::onDebug, this, std::placeholders::_1));
+  rth_status_sub_ = node->create_subscription<ReturnHomeState>(
+    "/return_home/status", rclcpp::QoS(1),
+    std::bind(&OffroadModePanel::onReturnHomeStatus, this, std::placeholders::_1));
 }
 
 void OffroadModePanel::onClickOffroad()
@@ -183,6 +212,31 @@ void OffroadModePanel::onRestartNav2()
           nav2_label_->setText(ok ? "nav2: active" : "nav2: startup FAILED (set initial pose first)");
         });
     });
+}
+
+void OffroadModePanel::callReturnHomeTrigger(const std::string & service)
+{
+  auto node = rviz_ros_node_.lock()->get_raw_node();
+  auto client = node->create_client<std_srvs::srv::Trigger>(service);
+  if (!client->wait_for_service(std::chrono::milliseconds(200))) {
+    RCLCPP_WARN(node->get_logger(), "service %s unavailable", service.c_str());
+    return;
+  }
+  client->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+}
+
+void OffroadModePanel::onSetHome() { callReturnHomeTrigger("/return_home/set_home"); }
+void OffroadModePanel::onReturnHomeClicked() { callReturnHomeTrigger("/return_home/return_home"); }
+void OffroadModePanel::onCancelReturn() { callReturnHomeTrigger("/return_home/cancel_return"); }
+
+void OffroadModePanel::onReturnHomeStatus(ReturnHomeState::ConstSharedPtr msg)
+{
+  const char * rr[] = {"NONE", "IN_PROGRESS", "REACHED", "CANCELED"};
+  rth_status_label_->setText(QString::fromStdString(
+    std::string(msg->has_home ? "home set" : "no home") +
+    (msg->returning ? " | RETURNING" : "") +
+    " | " + QString::number(msg->distance_to_home_m, 'f', 1).toStdString() + " m | " +
+    rr[msg->result < 4 ? msg->result : 0]));
 }
 
 }  // namespace autoware::nav2_offroad::rviz_plugin
