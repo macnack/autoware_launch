@@ -312,3 +312,36 @@ TEST(TrajectoryBuilder, HandlesMixedForwardAndReverseSegmentsWithVehicleHeading)
   EXPECT_TRUE(found_reverse_heading);
   EXPECT_TRUE(found_forward_after_reverse);
 }
+
+TEST(TrajectoryBuilder, DeceleratesTowardCusp)
+{
+  autoware::nav2_offroad::TrajectoryBuilderParams params;
+  params.resample_interval_m = 1.0;
+  params.cruise_speed_mps = 2.0;
+  params.goal_taper_distance_m = 5.0;
+  params.min_trajectory_point_distance_m = 0.2;
+  autoware::nav2_offroad::TrajectoryBuilder builder(params);
+
+  nav_msgs::msg::Path path;
+  path.header.frame_id = "map";
+  path.poses.push_back(makePose(0.0, 0.0, 0.0));
+  path.poses.push_back(makePose(1.0, 0.0, 0.0));
+  path.poses.push_back(makePose(2.0, 0.0, 0.0));  // forward -> reverse cusp here
+  path.poses.push_back(makePose(1.0, 0.0, 0.0));
+  path.poses.push_back(makePose(0.0, 0.0, 0.0));
+
+  const auto trajectory = builder.createTrajectoryFromPath(
+    rclcpp::Time(123, 0, RCL_ROS_TIME), path);
+
+  const size_t cusp_index = findTrajectoryPointByPosition(trajectory, 2.0, 0.0);
+  ASSERT_NE(cusp_index, std::numeric_limits<size_t>::max());
+  ASSERT_GT(cusp_index, 1U);
+
+  // Velocity tapers toward the cusp: the forward point adjacent to the cusp is
+  // slower (in magnitude) than a forward point farther from it, instead of
+  // jumping cruise -> 0 at the cusp.
+  const double v_near = std::fabs(trajectory.points.at(cusp_index - 1).longitudinal_velocity_mps);
+  const double v_far = std::fabs(trajectory.points.at(0).longitudinal_velocity_mps);
+  EXPECT_GT(v_near, 0.0);
+  EXPECT_LT(v_near, v_far);
+}
