@@ -160,4 +160,20 @@ TEST(TrajectoryValidatorCore, StackedPointsDoNotDivideByZero)
   const auto r = core.validate(traj, egoAt(traj.front()));
   EXPECT_TRUE(r.feasible);  // no divide-by-zero, no spurious curvature failure
 }
+
+TEST(TrajectoryValidatorCore, OverLateralAccelFails)
+{
+  ValidatorParams p;
+  p.max_curvature_1pm = 10.0;  // allow the curvature so lateral is the failure
+  p.max_lateral_accel_mps2 = 2.0;
+  p.max_velocity_mps = 100.0;
+  TrajectoryValidatorCore core{p};
+  // ds=0.5, dyaw=0.5 => kappa=1.0 /m; v=2 => lat = v^2*kappa = 4.0 > 2.0.
+  std::vector<TrajPoint> traj{mk(0.0, 0.0, 0.0, 2.0), mk(0.5, 0.0, 0.5, 2.0)};
+  const auto r = core.validate(traj, egoAt(traj.front()));
+  EXPECT_FALSE(r.feasible);
+  EXPECT_EQ(r.check, FailedCheck::LATERAL_ACCEL);
+  EXPECT_EQ(r.point_index, 0u);
+  EXPECT_DOUBLE_EQ(r.worst_value, 4.0);
+}
 }  // namespace

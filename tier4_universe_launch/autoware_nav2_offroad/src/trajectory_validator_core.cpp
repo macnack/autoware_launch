@@ -146,6 +146,22 @@ ValidationResult TrajectoryValidatorCore::validate(
     }
   }
 
+  // 6. Lateral acceleration (per segment; v^2 * kappa).
+  for (std::size_t i = 0; i + 1 < traj.size(); ++i) {
+    const double ds = segmentLength(traj[i], traj[i + 1]);
+    if (ds <= kMinSegmentLength) {
+      continue;
+    }
+    const double kappa = std::fabs(normalizeAngle(traj[i + 1].yaw - traj[i].yaw)) / ds;
+    const double lat = traj[i].velocity_mps * traj[i].velocity_mps * kappa;
+    if (lat > p.max_lateral_accel_mps2) {
+      return fail(
+        FailedCheck::LATERAL_ACCEL, i, lat, p.max_lateral_accel_mps2,
+        "lateral accel " + std::to_string(lat) + " m/s^2 exceeds max " +
+          std::to_string(p.max_lateral_accel_mps2) + " on segment " + std::to_string(i));
+    }
+  }
+
   return ValidationResult{};  // feasible
 }
 
