@@ -224,4 +224,18 @@ TEST(TrajectoryValidatorCore, InvalidEgoSkipsContinuity)
   const auto r = core.validate(traj, ego);
   EXPECT_TRUE(r.feasible);  // continuity not evaluated without a valid ego
 }
+
+TEST(TrajectoryValidatorCore, EarliestCategoryWins)
+{
+  ValidatorParams p;
+  p.max_velocity_mps = 5.0;
+  TrajectoryValidatorCore core{p};
+  // Both a non-finite value (cat 2) and an over-speed (cat 3) are present;
+  // NON_FINITE must win because it is the earlier category.
+  std::vector<TrajPoint> traj{
+    mk(0.0, 0.0, 0.0, 1.0), mk(0.5, 0.0, 0.0, 99.0), mk(1.0, 0.0, 0.0, std::nan(""))};
+  const auto r = core.validate(traj, egoAt(traj.front()));
+  EXPECT_FALSE(r.feasible);
+  EXPECT_EQ(r.check, FailedCheck::NON_FINITE);
+}
 }  // namespace
