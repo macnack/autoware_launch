@@ -38,6 +38,7 @@
   <node pkg="autoware_nav2_offroad" exec="perception_occupancy_relay_node" name="slam_map_relay" output="screen"
         if="$(eval '&quot;$(var occupancy_grid_source)&quot;==&quot;slam&quot;')">
     <param from="$(var slam_relay_param_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
   </node>
 
   <node pkg="nav2_planner" exec="planner_server" name="planner_server" output="screen">
