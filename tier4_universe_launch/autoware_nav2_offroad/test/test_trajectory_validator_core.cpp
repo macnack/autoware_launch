@@ -122,4 +122,18 @@ TEST(TrajectoryValidatorCore, VelocityExactlyAtLimitPasses)
   const auto r = core.validate(traj, egoAt(traj.front()));
   EXPECT_TRUE(r.feasible);
 }
+
+TEST(TrajectoryValidatorCore, OverLongitudinalAccelFails)
+{
+  ValidatorParams p;
+  p.max_longitudinal_accel_mps2 = 2.0;
+  TrajectoryValidatorCore core{p};
+  auto traj = feasibleTraj();
+  traj[2].acceleration_mps2 = -3.5;  // |a| > 2.0
+  const auto r = core.validate(traj, egoAt(traj.front()));
+  EXPECT_FALSE(r.feasible);
+  EXPECT_EQ(r.check, FailedCheck::LONGITUDINAL_ACCEL);
+  EXPECT_EQ(r.point_index, 2u);
+  EXPECT_DOUBLE_EQ(r.worst_value, 3.5);
+}
 }  // namespace

@@ -101,6 +101,17 @@ ValidationResult TrajectoryValidatorCore::validate(
     }
   }
 
+  // 4. Longitudinal acceleration.
+  for (std::size_t i = 0; i < traj.size(); ++i) {
+    const double a = std::fabs(traj[i].acceleration_mps2);
+    if (a > p.max_longitudinal_accel_mps2) {
+      return fail(
+        FailedCheck::LONGITUDINAL_ACCEL, i, a, p.max_longitudinal_accel_mps2,
+        "|accel| " + std::to_string(a) + " m/s^2 exceeds max " +
+          std::to_string(p.max_longitudinal_accel_mps2) + " at point " + std::to_string(i));
+    }
+  }
+
   return ValidationResult{};  // feasible
 }
 
