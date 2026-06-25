@@ -1,0 +1,7 @@
+/**:
+  ros__parameters:
+    reached_distance_m: 1.0
+    stopped_velocity_mps: 0.1
+    goal_topic: /planning/offroad_goal
+    cancel_topic: /planning/offroad_cancel
+    publish_rate_hz: 10.0

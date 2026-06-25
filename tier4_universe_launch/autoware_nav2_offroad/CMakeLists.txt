@@ -142,6 +142,27 @@ ament_target_dependencies(trajectory_mode_manager_node
   visualization_msgs
 )
 
+add_executable(return_home_node
+  src/return_home_node.cpp
+)
+target_link_libraries(return_home_node
+  autoware_nav2_offroad_return_home_core
+)
+target_include_directories(return_home_node PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+ament_target_dependencies(return_home_node
+  autoware_nav2_offroad_msgs
+  geometry_msgs
+  nav_msgs
+  rclcpp
+  std_msgs
+  std_srvs
+  tf2
+  tf2_geometry_msgs
+  visualization_msgs
+)
+
 install(TARGETS
   autoware_nav2_offroad_mode_manager_core
   autoware_nav2_offroad_return_home_core
@@ -150,6 +171,7 @@ install(TARGETS
   free_map_publisher_node
   nav2_path_to_trajectory_bridge_node
   perception_occupancy_relay_node
+  return_home_node
   trajectory_mode_manager_node
   trajectory_mode_mux_node
   DESTINATION lib/${PROJECT_NAME}
