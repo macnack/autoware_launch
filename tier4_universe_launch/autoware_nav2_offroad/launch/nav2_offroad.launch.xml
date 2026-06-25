@@ -10,6 +10,8 @@
   <arg name="bridge_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_path_to_trajectory_bridge.param.yaml"/>
   <arg name="free_map_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/free_map_publisher.param.yaml"/>
   <arg name="relay_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/perception_occupancy_relay.param.yaml"/>
+  <arg name="launch_return_home" default="true"/>
+  <arg name="return_home_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/return_home.param.yaml"/>
 
   <!-- Source of the occupancy grid that feeds the Nav2 costmap:
          free       -> free_map_publisher (all-free map, for sim / open ground)
@@ -61,6 +63,12 @@
   <node pkg="autoware_nav2_offroad" exec="nav2_path_to_trajectory_bridge_node" name="nav2_path_to_trajectory_bridge" output="screen">
     <param from="$(var bridge_param_file)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <node pkg="autoware_nav2_offroad" exec="return_home_node" name="return_home" output="screen"
+        if="$(var launch_return_home)">
+    <param from="$(var return_home_param_file)"/>
+    <remap from="~/input/kinematic_state" to="/localization/kinematic_state"/>
   </node>
 
   <node pkg="autoware_nav2_offroad" exec="trajectory_mode_manager_node" name="trajectory_mode_manager" output="screen"
