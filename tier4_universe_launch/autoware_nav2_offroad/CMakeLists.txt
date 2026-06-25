@@ -58,6 +58,14 @@ target_include_directories(autoware_nav2_offroad_mode_manager_core PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 
+add_library(autoware_nav2_offroad_return_home_core
+  src/return_home_core.cpp
+)
+target_include_directories(autoware_nav2_offroad_return_home_core PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
 add_library(autoware_nav2_offroad_occupancy_grid_relay
   src/occupancy_grid_relay.cpp
 )
@@ -136,6 +144,7 @@ ament_target_dependencies(trajectory_mode_manager_node
 
 install(TARGETS
   autoware_nav2_offroad_mode_manager_core
+  autoware_nav2_offroad_return_home_core
   autoware_nav2_offroad_occupancy_grid_relay
   autoware_nav2_offroad_trajectory_builder
   free_map_publisher_node
@@ -199,6 +208,18 @@ if(BUILD_TESTING)
       autoware_nav2_offroad_occupancy_grid_relay
     )
     target_include_directories(test_occupancy_grid_relay PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+  endif()
+
+  ament_add_gtest(test_return_home_core
+    test/test_return_home_core.cpp
+  )
+  if(TARGET test_return_home_core)
+    target_link_libraries(test_return_home_core
+      autoware_nav2_offroad_return_home_core
+    )
+    target_include_directories(test_return_home_core PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
   endif()
