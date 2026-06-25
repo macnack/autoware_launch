@@ -144,18 +144,20 @@ reverse segments would be driven forward (wrong direction + 180°-wrong heading)
 
 **Tasks (the real work is the bridge, not the planner):**
 
-- planner: set `motion_model_for_search: REEDS_SHEPP` (and tune `reverse_penalty`).
-- `trajectory_builder`:
-  - detect per-segment motion direction (path tangent vs pose orientation, or the
-    planner's direction info)
-  - set **negative** `longitudinal_velocity_mps` on reverse segments
-  - set point orientation to the **vehicle heading** (opposite the motion tangent
-    while reversing), not the motion tangent
-  - insert a **zero-velocity point at each cusp** (forward↔reverse switch) so the
-    controller can change direction
-- bridge: command `GearCommand::REVERSE` on reverse segments (gear must match the
-  current segment's direction; currently always `DRIVE`)
-- verify `trajectory_follower` tracks the reverse trajectory; relaxed
-  `vehicle_cmd_gate` limits already allow it.
+- `trajectory_builder` — **DONE** (TDD, `trajectory_builder.cpp`; 9 gtests):
+  - [x] detect per-segment motion direction (planner pose orientation vs position delta)
+  - [x] **negative** `longitudinal_velocity_mps` on reverse segments
+  - [x] point orientation = **vehicle heading** (not the motion tangent) on reverse
+  - [x] **zero-velocity point at each cusp** (forward↔reverse switch)
+  - [x] velocity tapers to zero approaching a cusp (code-review fix — no
+    cruise→0→cruise jump)
+- **Still open (needs the sim, not done):**
+  - bridge: command `GearCommand::REVERSE` on reverse segments (a `TODO(backlog-6)`
+    note is in `nav2_path_to_trajectory_bridge_node.cpp`; gear is always `DRIVE` today)
+  - planner: set `motion_model_for_search: REEDS_SHEPP` (and tune `reverse_penalty`)
+    in `config/nav2_offroad.param.yaml` — intentionally NOT flipped yet
+  - verify `trajectory_follower` tracks the reverse trajectory end-to-end in sim
+    (relaxed `vehicle_cmd_gate` limits already allow it)
 
-This is a feature, not a config flip — TDD the builder's reverse/cusp handling.
+The builder is a self-contained, unit-tested feature; the remaining work is gear
+command + the planner flag + sim verification, all of which need the running sim.
