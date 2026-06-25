@@ -22,6 +22,26 @@
   <arg name="perception_occupancy_topic" default="/perception/occupancy_grid_map/map"/>
   <arg name="slam_relay_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/slam_map_relay.param.yaml"/>
 
+  <!-- Off-road local control layer:
+         bridge -> path is converted to an Autoware Trajectory and driven by the
+                   Autoware trajectory_follower (default, unchanged).
+         mppi   -> Nav2 controller_server (nav2_mppi_controller) drives the path and
+                   emits /cmd_vel; bt_navigator orchestrates planner->controller.
+                   NOTE: cmd_vel->gate routing is separate — mppi mode is not yet
+                   drivable end-to-end. See BACKLOG #11. -->
+  <arg name="local_layer" default="bridge" description="bridge | mppi"/>
+  <!-- Global planner A/B (BACKLOG #11): smac_hybrid (default) | lattice. -->
+  <arg name="global_planner" default="smac_hybrid" description="smac_hybrid | lattice"/>
+  <arg name="mppi_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_mppi_controller.param.yaml"/>
+  <arg name="bt_nav_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_bt_navigator.param.yaml"/>
+  <arg name="lattice_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_smac_lattice.param.yaml"/>
+
+  <!-- lifecycle node list depends on the local layer -->
+  <let name="lifecycle_nodes" value="[planner_server, smoother_server]"
+       unless="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')"/>
+  <let name="lifecycle_nodes" value="[planner_server, smoother_server, controller_server, bt_navigator]"
+       if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')"/>
+
   <node pkg="autoware_nav2_offroad" exec="free_map_publisher_node" name="free_map_publisher" output="screen"
         if="$(eval '&quot;$(var occupancy_grid_source)&quot;==&quot;free&quot;')">
     <param from="$(var free_map_param_file)"/>
@@ -45,6 +65,9 @@
 
   <node pkg="nav2_planner" exec="planner_server" name="planner_server" output="screen">
     <param from="$(var nav2_param_file)"/>
+    <!-- global_planner:=lattice overlays SmacPlannerLattice over the Hybrid block above
+         (base file still provides global_costmap). -->
+    <param from="$(var lattice_param_file)" if="$(eval '&quot;$(var global_planner)&quot;==&quot;lattice&quot;')"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="global_costmap.global_costmap.use_sim_time" value="$(var use_sim_time)"/>
   </node>
@@ -57,11 +80,26 @@
   <node pkg="nav2_lifecycle_manager" exec="lifecycle_manager" name="lifecycle_manager_navigation" output="screen">
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="autostart" value="true"/>
-    <param name="node_names" value="[planner_server, smoother_server]"/>
+    <param name="node_names" value="$(var lifecycle_nodes)"/>
   </node>
 
-  <node pkg="autoware_nav2_offroad" exec="nav2_path_to_trajectory_bridge_node" name="nav2_path_to_trajectory_bridge" output="screen">
+  <node pkg="autoware_nav2_offroad" exec="nav2_path_to_trajectory_bridge_node" name="nav2_path_to_trajectory_bridge" output="screen"
+        if="$(eval '&quot;$(var local_layer)&quot;==&quot;bridge&quot;')">
     <param from="$(var bridge_param_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <!-- MPPI local layer (local_layer:=mppi). BACKLOG #11. -->
+  <node pkg="nav2_controller" exec="controller_server" name="controller_server" output="screen"
+        if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')">
+    <param from="$(var mppi_param_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="local_costmap.local_costmap.use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <node pkg="nav2_bt_navigator" exec="bt_navigator" name="bt_navigator" output="screen"
+        if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')">
+    <param from="$(var bt_nav_param_file)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
   </node>
 

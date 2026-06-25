@@ -161,3 +161,52 @@ reverse segments would be driven forward (wrong direction + 180°-wrong heading)
 
 The builder is a self-contained, unit-tested feature; the remaining work is gear
 command + the planner flag + sim verification, all of which need the running sim.
+
+## 11. Adopt the Nav2 MPPI controller as the off-road local layer
+
+Deep-research finding (see
+[research/lattice-motion-planning.md](research/lattice-motion-planning.md)): the
+highest-value planner change for off-road is **not** swapping the global planner but
+adding **`nav2_mppi_controller`** underneath it. MPPI (Model Predictive Path Integral)
+is what DARPA RACER / NASA JPL / Georgia Tech AutoRally use for rough-terrain
+kinodynamic driving — it samples control sequences forward through a dynamics model
+(feasible by construction), handles traction/slope/contact dynamics and reactive
+avoidance the geometric global planner ignores, reverses by default (`vx_min` −0.35),
+and is cost-shapeable so the traversability costmap (item 4) flows straight into
+control. State lattice (`SmacPlannerLattice`) is at most an optional A/B test.
+
+Tasks:
+
+- bring up `nav2_mppi_controller` in the off-road stack (Ackermann motion model),
+  replacing/augmenting the current `trajectory_follower`-driven control where Nav2
+  controls (overlaps with the teach&repeat cmd_vel→gate routing);
+- add an Obstacles/dynamic-obstacle critic (vanilla MPPI does not model dynamic
+  obstacles) and tune critics (PathAlign / PathFollow / PreferForward / Cost);
+- budget a GPU (parallel rollouts are the cost); watch for local minima (recent
+  repulsive-potential fixes exist);
+- keep Hybrid A* (REEDS_SHEPP) as the global planner: it plans the route, MPPI drives it.
+
+Research also confirms REEDS_SHEPP as the right priority and advises **against**
+a custom state-lattice / spatiotemporal-conformal-lattice / RRT* / end-to-end learned
+planner; `SmacPlannerLattice` is at most an optional A/B test.
+
+**Implemented (config + launch, branch `feat/offroad-mppi-local-layer`):**
+
+- `local_layer:=mppi` brings up `controller_server` (`nav2_mppi_controller`, Ackermann,
+  `vx_min:-0.35` reverse, critics incl. **ObstaclesCritic**) + a rolling `local_costmap` +
+  `bt_navigator` (NavigateToPose orchestration), all under the existing lifecycle manager;
+  the path→trajectory bridge is suppressed in this mode. Default stays `local_layer:=bridge`.
+- `global_planner:=lattice` overlays `SmacPlannerLattice` as the optional A/B planner
+  (Hybrid-A\* remains default).
+- Config: `config/nav2_mppi_controller.param.yaml`, `config/nav2_bt_navigator.param.yaml`,
+  `config/nav2_smac_lattice.param.yaml`. Deps added to `package.xml`.
+
+**Remaining (NOT in this branch):**
+
+- **cmd_vel → gate routing** (shared with the teach&repeat cmd_vel→gate work): MPPI emits
+  `/cmd_vel`, but it is not yet routed to `vehicle_cmd_gate`, so `mppi` mode is **not yet
+  drivable** end-to-end.
+- a goal relay turning `/planning/offroad_goal` into a `NavigateToPose` action goal;
+- add a dynamic-obstacle critic and tune critics; sim-drive + **GPU** provisioning; watch
+  for local minima;
+- keep Hybrid A\* (REEDS_SHEPP) as the global planner: it plans the route, MPPI drives it.
