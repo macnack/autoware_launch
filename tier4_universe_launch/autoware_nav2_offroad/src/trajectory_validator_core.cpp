@@ -90,6 +90,17 @@ ValidationResult TrajectoryValidatorCore::validate(
     }
   }
 
+  // 3. Velocity.
+  for (std::size_t i = 0; i < traj.size(); ++i) {
+    const double v = std::fabs(traj[i].velocity_mps);
+    if (v > p.max_velocity_mps) {
+      return fail(
+        FailedCheck::VELOCITY, i, v, p.max_velocity_mps,
+        "speed " + std::to_string(v) + " m/s exceeds max " + std::to_string(p.max_velocity_mps) +
+          " at point " + std::to_string(i));
+    }
+  }
+
   return ValidationResult{};  // feasible
 }
 

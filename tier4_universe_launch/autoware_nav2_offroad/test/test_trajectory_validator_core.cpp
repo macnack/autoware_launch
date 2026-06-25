@@ -96,4 +96,30 @@ TEST(TrajectoryValidatorCore, InfVelocityFails)
   EXPECT_FALSE(r.feasible);
   EXPECT_EQ(r.check, FailedCheck::NON_FINITE);
 }
+
+TEST(TrajectoryValidatorCore, OverSpeedFails)
+{
+  ValidatorParams p;
+  p.max_velocity_mps = 5.0;
+  TrajectoryValidatorCore core{p};
+  auto traj = feasibleTraj(4, 1.0);
+  traj[3].velocity_mps = 6.0;  // over limit
+  const auto r = core.validate(traj, egoAt(traj.front()));
+  EXPECT_FALSE(r.feasible);
+  EXPECT_EQ(r.check, FailedCheck::VELOCITY);
+  EXPECT_EQ(r.point_index, 3u);
+  EXPECT_DOUBLE_EQ(r.worst_value, 6.0);
+  EXPECT_DOUBLE_EQ(r.limit, 5.0);
+}
+
+TEST(TrajectoryValidatorCore, VelocityExactlyAtLimitPasses)
+{
+  ValidatorParams p;
+  p.max_velocity_mps = 5.0;
+  TrajectoryValidatorCore core{p};
+  auto traj = feasibleTraj(4, 5.0);  // exactly at limit
+  // Keep continuity happy: ego matches first point's 5.0 m/s.
+  const auto r = core.validate(traj, egoAt(traj.front()));
+  EXPECT_TRUE(r.feasible);
+}
 }  // namespace
