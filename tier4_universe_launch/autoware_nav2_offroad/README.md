@@ -26,6 +26,8 @@ nav2_path_to_trajectory_bridge          ~/change_mode service
 | `perception_occupancy_relay` | `perception_occupancy_relay_node` | Relays the real Autoware perception occupancy grid into the latched Nav2 costmap input; selected with `occupancy_grid_source:=perception` |
 | `nav2_path_to_trajectory_bridge` | `nav2_path_to_trajectory_bridge_node` | Calls Nav2 `ComputePathToPose` + `SmoothPath`, converts the result to an Autoware `Trajectory` |
 | `trajectory_mode_manager` | `trajectory_mode_manager_node` | Owns `/planning/trajectory`; routes on-road or off-road trajectory via a guarded mode state machine with safe-stop fallback. Exposes `~/change_mode` + `~/status` (see [MODE_MANAGER_DESIGN.md](MODE_MANAGER_DESIGN.md)). Supersedes the legacy `trajectory_mode_mux_node`. |
+| `controller_server` | `controller_server` (nav2_controller) | MPPI local layer (`local_layer:=mppi`, BACKLOG #11): follows the global path, emits `/cmd_vel` |
+| `bt_navigator` | `bt_navigator` (nav2_bt_navigator) | NavigateToPose orchestration feeding the path to `controller_server` (`local_layer:=mppi`) |
 
 ## Switching modes at runtime
 
@@ -160,6 +162,22 @@ Config files in `config/`:
 | `free_map_publisher.param.yaml` | Free-space map resolution and frame |
 | `perception_occupancy_relay.param.yaml` | Perception occupancy relay topics and `unknown_as_free` |
 | `vehicle_cmd_gate_nav2_offroad.param.yaml` | Relaxed vehicle_cmd_gate limits for off-road speeds |
+| `nav2_mppi_controller.param.yaml` | MPPI controller + local costmap (`local_layer:=mppi`, BACKLOG #11) |
+| `nav2_bt_navigator.param.yaml` | bt_navigator NavigateToPose orchestration (`local_layer:=mppi`) |
+| `nav2_smac_lattice.param.yaml` | `SmacPlannerLattice` A/B planner overlay (`global_planner:=lattice`) |
+
+### Off-road local layer / planner selection (BACKLOG #11)
+
+`nav2_offroad.launch.xml` exposes two selectors:
+
+| Arg | Values | Default | Effect |
+|-----|--------|---------|--------|
+| `local_layer` | `bridge` \| `mppi` | `bridge` | `bridge`: path→Autoware Trajectory→`trajectory_follower` (current). `mppi`: Nav2 `controller_server` (`nav2_mppi_controller`, Ackermann) + `bt_navigator` + `local_costmap` drive the path and emit `/cmd_vel`. |
+| `global_planner` | `smac_hybrid` \| `lattice` | `smac_hybrid` | `lattice` overlays `SmacPlannerLattice` (optional A/B test). |
+
+> **`mppi` mode is bring-up only and not yet drivable end-to-end:** MPPI produces
+> `/cmd_vel`, but routing it through `cmd_vel_to_control_bridge` → `vehicle_cmd_gate`
+> is a separate open seam. Until that lands, use the default `local_layer:=bridge`.
 
 Key bridge parameters:
 

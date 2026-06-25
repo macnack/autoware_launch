@@ -22,6 +22,7 @@ Five groups of parameters, each in its own config file under `config/`:
 | Perception occupancy relay | `perception_occupancy_relay.param.yaml` | the real LiDAR-based costmap source |
 | Mode manager | node params (set in `nav2_offroad.launch.xml`) | when/how it is safe to switch planners |
 | Vehicle command limits | `vehicle_cmd_gate_nav2_offroad.param.yaml` | actuation limits in off-road mode |
+| Nav2 MPPI controller (`local_layer:=mppi`) | `nav2_mppi_controller.param.yaml` | the *local control* (critic weights, `vx_*` limits, motion model) |
 
 ## How to apply changes
 
@@ -173,3 +174,15 @@ limits. These are hard actuation limits — set them to the vehicle's real envel
 
 Validate each step in `planning_simulator` before the vehicle; log `~/status`
 and the costmap/trajectory topics to a rosbag for review.
+
+## MPPI controller (`local_layer:=mppi`, BACKLOG #11)
+
+`config/nav2_mppi_controller.param.yaml`. Start points (untuned):
+
+- speed/reverse: `FollowPath.vx_max` (2.0, = bridge cruise), `vx_min` (−0.35, reverse).
+- feasibility: `AckermannConstraints.min_turning_r` (3.5, = planner radius).
+- path tracking vs avoidance: raise `PathAlignCritic.cost_weight` to hug the global path;
+  raise `ObstaclesCritic.repulsion_weight` / `critical_weight` to push off obstacles.
+- if MPPI stalls in a local minimum, raise `ObstaclesCritic.repulsion_weight` and/or
+  `PreferForwardCritic.cost_weight`. GPU strongly recommended (lower `batch_size` /
+  `controller_frequency` on CPU).
