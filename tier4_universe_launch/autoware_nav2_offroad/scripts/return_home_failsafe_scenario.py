@@ -46,12 +46,14 @@ from nav_msgs.msg import Odometry
 from std_srvs.srv import Trigger
 
 # ReturnHomeState.result values (from autoware_nav2_offroad_msgs/msg/ReturnHomeState):
-#   IDLE     = 0
-#   RUNNING  = 1
-#   REACHED  = 2
-#   FAILED   = 3
+#   NONE        = 0
+#   IN_PROGRESS = 1
+#   REACHED     = 2
+#   CANCELED    = 3
+#   FAILED      = 4
 RESULT_REACHED = 2
-RESULT_FAILED = 3
+RESULT_CANCELED = 3
+RESULT_FAILED = 4
 
 
 def yaw_from_quat(q):
@@ -216,6 +218,10 @@ class ReturnHomeScenario(Node):
                 if r == RESULT_REACHED:
                     final_result = r
                     break
+                if r == RESULT_CANCELED:
+                    self.get_logger().error("ReturnHomeState.result == CANCELED")
+                    final_result = r
+                    break
                 if r == RESULT_FAILED:
                     self.get_logger().error("ReturnHomeState.result == FAILED")
                     final_result = r
@@ -229,8 +235,9 @@ class ReturnHomeScenario(Node):
         yaw_err = abs(norm_angle(fyaw - home_yaw))
 
         result_str = {
-            None: "TIMEOUT (no REACHED/FAILED received)",
+            None: "TIMEOUT (no REACHED/CANCELED/FAILED received)",
             RESULT_REACHED: "REACHED",
+            RESULT_CANCELED: "CANCELED",
             RESULT_FAILED: "FAILED",
         }.get(final_result, f"UNKNOWN ({final_result})")
 

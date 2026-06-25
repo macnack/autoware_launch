@@ -5,3 +5,4 @@
     goal_topic: /planning/offroad_goal
     cancel_topic: /planning/offroad_cancel
     publish_rate_hz: 10.0
+    return_timeout_s: 120.0
