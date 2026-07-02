@@ -203,12 +203,15 @@ planner; `SmacPlannerLattice` is at most an optional A/B test.
 
 **Remaining (NOT in this branch):**
 
-- **cmd_vel → gate routing** (shared with the teach&repeat cmd_vel→gate work): MPPI emits
-  `/cmd_vel`, but it is not yet routed to `vehicle_cmd_gate`, so `mppi` mode is **not yet
-  drivable** end-to-end.
-- a goal relay turning `/planning/offroad_goal` into a `NavigateToPose` action goal;
+- ~~cmd_vel → gate routing (shared with the teach&repeat cmd_vel→gate work): MPPI emits
+  `/cmd_vel`, but it is not yet routed to `vehicle_cmd_gate`, so `mppi` mode is not yet
+  drivable end-to-end.~~ **(now DONE, see 2026-07-02 update below)**
+- ~~a goal relay turning `/planning/offroad_goal` into a `NavigateToPose` action goal.~~
+  **(now DONE, see 2026-07-02 update below)**
 - add a dynamic-obstacle critic and tune critics; sim-drive + **GPU** provisioning; watch
-  for local minima;
+  for local minima; the end-to-end sim-drive (incl. AUTONOMOUS-engage-without-trajectory
+  check) is still unverified even though routing is now wired — see README's safety-model
+  caveat.
 - keep Hybrid A\* (REEDS_SHEPP) as the global planner: it plans the route, MPPI drives it.
 
 ### Update 2026-07-02 — `mppi` mode is now drivable (branch `feat/offroad-mppi-drive`)
@@ -230,7 +233,7 @@ planner; `SmacPlannerLattice` is at most an optional A/B test.
   through `tier4_control_launch/control.launch.xml` (mirrors the existing
   `auto_gear_cmd_topic` precedent); default value keeps `bridge` mode at zero behavior
   change. Run with `local_layer:=mppi auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd`.
-  See README's "`mppi` mode is now drivable end-to-end" section for the full run command
+  See README's "`mppi` mode: routing complete; end-to-end sim-drive pending" section for the full run command
   and safety model.
 - **v1 is forward-only** (`vx_min: 0.0`); see TUNING.md for the reverse-support pointer.
 

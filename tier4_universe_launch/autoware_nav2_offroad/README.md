@@ -175,7 +175,7 @@ Config files in `config/`:
 | `local_layer` | `bridge` \| `mppi` | `bridge` | `bridge`: path→Autoware Trajectory→`trajectory_follower` (current). `mppi`: Nav2 `controller_server` (`nav2_mppi_controller`, Ackermann) + `bt_navigator` + `local_costmap` drive the path and emit `/cmd_vel`, routed to `vehicle_cmd_gate` (see below). |
 | `global_planner` | `smac_hybrid` \| `lattice` | `smac_hybrid` | `lattice` overlays `SmacPlannerLattice` (optional A/B test). |
 
-### `mppi` mode is now drivable end-to-end
+### `mppi` mode: routing complete; end-to-end sim-drive pending
 
 `local_layer:=mppi` closes both seams left open by the BACKLOG #11 bring-up:
 `offroad_goal_relay_node` converts `/planning/offroad_goal` into the
@@ -211,9 +211,12 @@ follow-up, BACKLOG #4).
 
 #### Safety model in `mppi` mode
 
-The on-road `planning_validator` is **not in the loop** in `mppi` mode —
-there is no Autoware `Trajectory` for it to validate. Safety instead comes
-from a three-link chain:
+In `mppi` mode, MPPI drives directly off the Nav2 path/costmap and never
+produces an Autoware `Trajectory`, so **neither trajectory-level validator
+is in the loop**: not the on-road `planning_validator`, and not this
+package's own off-road `trajectory_validator` (BACKLOG #3), since there is
+no `Trajectory` for either to validate. Safety instead comes from a
+three-link chain:
 
 1. **Avoidance** — MPPI's `ObstaclesCritic`, reacting to the live local
    costmap.

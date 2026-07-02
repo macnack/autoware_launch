@@ -179,7 +179,9 @@ and the costmap/trajectory topics to a rosbag for review.
 
 `config/nav2_mppi_controller.param.yaml`. Start points (untuned):
 
-- speed/reverse: `FollowPath.vx_max` (2.0, = bridge cruise), `vx_min` (−0.35, reverse).
+- speed/reverse: `FollowPath.vx_max` (2.0, = bridge cruise); `vx_min` is `0.0` (forward-only
+  v1 — see note below; do **not** set it negative without also adding gear-sequencing to
+  the cmd_vel bridge).
 - feasibility: `AckermannConstraints.min_turning_r` (3.5, = planner radius).
 - path tracking vs avoidance: raise `PathAlignCritic.cost_weight` to hug the global path;
   raise `ObstaclesCritic.repulsion_weight` / `critical_weight` to push off obstacles.
