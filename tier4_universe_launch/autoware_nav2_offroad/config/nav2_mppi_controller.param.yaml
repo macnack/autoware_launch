@@ -38,7 +38,7 @@ controller_server:
       vy_std: 0.0
       wz_std: 0.4
       vx_max: 2.0          # matches bridge cruise_speed_mps
-      vx_min: -0.35        # reverse by default (research)
+      vx_min: 0.0          # v1 forward-only: reverse needs gear sequencing in the bridge (follow-up)
       vy_max: 0.0          # Ackermann: no lateral velocity
       wz_max: 1.0
       ax_max: 3.0
