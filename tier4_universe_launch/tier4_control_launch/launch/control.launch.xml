@@ -62,6 +62,7 @@
   <arg name="output_turn_indicators_cmd" default="/control/command/turn_indicators_cmd"/>
   <arg name="output_hazard_lights_cmd" default="/control/command/hazard_lights_cmd"/>
   <arg name="auto_gear_cmd_topic" default="/control/shift_decider/gear_cmd"/>
+  <arg name="auto_control_cmd_topic" default="/control/trajectory_follower/control_cmd"/>
 
   <group>
     <push-ros-namespace namespace="control"/>
@@ -96,7 +97,7 @@
         <composable_node pkg="autoware_vehicle_cmd_gate" plugin="autoware::vehicle_cmd_gate::VehicleCmdGate" name="vehicle_cmd_gate" unless="$(var use_control_command_gate)">
           <remap from="input/steering" to="/vehicle/status/steering_status"/>
           <remap from="input/operation_mode" to="/system/operation_mode/state"/>
-          <remap from="input/auto/control_cmd" to="/control/trajectory_follower/control_cmd"/>
+          <remap from="input/auto/control_cmd" to="$(var auto_control_cmd_topic)"/>
           <remap from="input/auto/turn_indicators_cmd" to="/planning/turn_indicators_cmd"/>
           <remap from="input/auto/hazard_lights_cmd" to="/planning/hazard_lights_cmd"/>
           <remap from="input/auto/gear_cmd" to="$(var auto_gear_cmd_topic)"/>

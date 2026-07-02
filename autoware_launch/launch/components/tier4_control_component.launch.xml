@@ -14,6 +14,7 @@
   <arg name="vehicle_model" default="sample_vehicle"/>
   <arg name="vehicle_cmd_gate_param_path" default="$(find-pkg-share autoware_launch)/config/control/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"/>
   <arg name="auto_gear_cmd_topic" default="/control/shift_decider/gear_cmd"/>
+  <arg name="auto_control_cmd_topic" default="/control/trajectory_follower/control_cmd"/>
 
   <!-- Input topic parameters for control modules -->
   <arg name="control_input_objects_topic_name" default="/perception/object_recognition/objects"/>
@@ -58,6 +59,7 @@
     <!-- package param path -->
     <arg name="vehicle_cmd_gate_param_path" value="$(var vehicle_cmd_gate_param_path)"/>
     <arg name="auto_gear_cmd_topic" value="$(var auto_gear_cmd_topic)"/>
+    <arg name="auto_control_cmd_topic" value="$(var auto_control_cmd_topic)"/>
     <arg name="control_command_gate_param_path" value="$(find-pkg-share autoware_launch)/config/control/control_command_gate/control_command_gate.param.yaml"/>
     <arg name="lane_departure_checker_param_path" value="$(find-pkg-share autoware_launch)/config/control/lane_departure_checker/lane_departure_checker.param.yaml"/>
     <arg name="control_validator_param_path" value="$(find-pkg-share autoware_launch)/config/control/control_validator/control_validator.param.yaml"/>
