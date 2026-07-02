@@ -186,3 +186,9 @@ and the costmap/trajectory topics to a rosbag for review.
 - if MPPI stalls in a local minimum, raise `ObstaclesCritic.repulsion_weight` and/or
   `PreferForwardCritic.cost_weight`. GPU strongly recommended (lower `batch_size` /
   `controller_frequency` on CPU).
+
+**Forward-only (v1):** `FollowPath.vx_min` is `0.0` — MPPI will not command reverse. To
+re-enable reverse, set `vx_min` back to a negative value (e.g. `-0.35`) here in
+`nav2_mppi_controller.param.yaml` **and** implement the bridge's gear-by-sign +
+stop-before-gear-change sequencing (BACKLOG #11 "Remaining: Reverse driving"); the bridge
+currently assumes forward motion and does not switch gear.

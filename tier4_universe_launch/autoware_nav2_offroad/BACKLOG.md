@@ -210,3 +210,44 @@ planner; `SmacPlannerLattice` is at most an optional A/B test.
 - add a dynamic-obstacle critic and tune critics; sim-drive + **GPU** provisioning; watch
   for local minima;
 - keep Hybrid A\* (REEDS_SHEPP) as the global planner: it plans the route, MPPI drives it.
+
+### Update 2026-07-02 — `mppi` mode is now drivable (branch `feat/offroad-mppi-drive`)
+
+**DONE:** both seams called out above are closed.
+
+- **Goal relay** — new `offroad_goal_relay_node` converts `/planning/offroad_goal`
+  (PoseStamped) into a `NavigateToPose` action goal for `bt_navigator`, and
+  `/planning/offroad_cancel` (`Bool`) into `async_cancel_all_goals`. Modeled on the
+  reviewed `nav2_navigate_through_poses_bridge` (goal-rejection callback + `goal_in_flight_`
+  re-entrancy guard ported from there). Publishes `~/result`
+  (NONE/ACTIVE/SUCCEEDED/ABORTED/CANCELED). Reuses the existing goal/cancel topics, so RTH,
+  the RViz Off-road Goal tool, and `offroad_demo_tour.py` work unchanged in `mppi` mode.
+- **cmd_vel → gate routing** — `cmd_vel_to_control_bridge` (bicycle model + stale-`cmd_vel`
+  hold-stop watchdog) ported verbatim from `feat/teach-repeat-rth` (already reviewed, 5
+  gtests green there), with `initial_enabled:=true` in `mppi` mode and gear output remapped
+  to `auto_gear_cmd_topic` (`/planning/gear_cmd`). Its `Control` output is routed onto
+  `vehicle_cmd_gate`'s AUTO input via a new `auto_control_cmd_topic` launch arg threaded
+  through `tier4_control_launch/control.launch.xml` (mirrors the existing
+  `auto_gear_cmd_topic` precedent); default value keeps `bridge` mode at zero behavior
+  change. Run with `local_layer:=mppi auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd`.
+  See README's "`mppi` mode is now drivable end-to-end" section for the full run command
+  and safety model.
+- **v1 is forward-only** (`vx_min: 0.0`); see TUNING.md for the reverse-support pointer.
+
+**Also fixed incidentally in this branch:** a pre-existing `<param if=...>` parse bug on the
+`planner_server` lattice overlay — ROS 2 Humble's `launch_xml` frontend does not support
+`if`/`unless` attributes on `<param>` elements (only on `<node>`/`<group>`/`<let>`). It was
+blocking launch-file parsing in *both* `local_layer` modes, not just `global_planner:=lattice`.
+Fixed by splitting the single conditional-`<param>` `planner_server` node into two full
+`<node>` entries gated with `if`/`unless` on `global_planner` (see
+`launch/nav2_offroad.launch.xml`).
+
+**Remaining:**
+
+- **Sim-check:** confirm `AUTONOMOUS` engage succeeds without `/planning/trajectory` being
+  published (`allow_autonomous_in_stopped: true` should permit standstill engage — not yet
+  verified end-to-end in sim). See README "Open sim-check caveat".
+- **Reverse driving:** `vx_min < 0` plus gear-sequencing (stop-before-gear-change) in the
+  bridge, same shape as BACKLOG #6's reverse work — deferred follow-up.
+- **GPU / critic tuning:** add a dynamic-obstacle critic, tune critic weights, provision a
+  GPU for MPPI's parallel rollouts, watch for local minima.
