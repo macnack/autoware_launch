@@ -217,6 +217,17 @@ ament_target_dependencies(cmd_vel_to_control_bridge_node
   std_srvs
 )
 
+add_executable(offroad_goal_relay_node
+  src/offroad_goal_relay_node.cpp
+)
+ament_target_dependencies(offroad_goal_relay_node
+  geometry_msgs
+  nav2_msgs
+  rclcpp
+  rclcpp_action
+  std_msgs
+)
+
 install(TARGETS
   autoware_nav2_offroad_cmd_vel_to_control
   autoware_nav2_offroad_mode_manager_core
@@ -227,6 +238,7 @@ install(TARGETS
   cmd_vel_to_control_bridge_node
   free_map_publisher_node
   nav2_path_to_trajectory_bridge_node
+  offroad_goal_relay_node
   perception_occupancy_relay_node
   return_home_node
   trajectory_mode_manager_node
