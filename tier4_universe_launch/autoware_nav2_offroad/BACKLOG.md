@@ -171,9 +171,11 @@ adding **`nav2_mppi_controller`** underneath it. MPPI (Model Predictive Path Int
 is what DARPA RACER / NASA JPL / Georgia Tech AutoRally use for rough-terrain
 kinodynamic driving — it samples control sequences forward through a dynamics model
 (feasible by construction), handles traction/slope/contact dynamics and reactive
-avoidance the geometric global planner ignores, reverses by default (`vx_min` −0.35),
-and is cost-shapeable so the traversability costmap (item 4) flows straight into
-control. State lattice (`SmacPlannerLattice`) is at most an optional A/B test.
+avoidance the geometric global planner ignores, and can reverse (`vx_min` −0.35 in general
+MPPI usage — **not** the shipped v1 default, see the 2026-07-02 update below: shipped v1 is
+forward-only, `vx_min: 0.0`), and is cost-shapeable so the traversability costmap (item 4)
+flows straight into control. State lattice (`SmacPlannerLattice`) is at most an optional
+A/B test.
 
 Tasks:
 
@@ -193,7 +195,8 @@ planner; `SmacPlannerLattice` is at most an optional A/B test.
 **Implemented (config + launch, branch `feat/offroad-mppi-local-layer`):**
 
 - `local_layer:=mppi` brings up `controller_server` (`nav2_mppi_controller`, Ackermann,
-  `vx_min:-0.35` reverse, critics incl. **ObstaclesCritic**) + a rolling `local_costmap` +
+  ~~`vx_min:-0.35` reverse~~ **superseded — shipped v1 is forward-only, `vx_min: 0.0`, see the
+  2026-07-02 update below**, critics incl. **ObstaclesCritic**) + a rolling `local_costmap` +
   `bt_navigator` (NavigateToPose orchestration), all under the existing lifecycle manager;
   the path→trajectory bridge is suppressed in this mode. Default stays `local_layer:=bridge`.
 - `global_planner:=lattice` overlays `SmacPlannerLattice` as the optional A/B planner

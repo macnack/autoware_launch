@@ -56,7 +56,10 @@ private:
 
   void onGoal(geometry_msgs::msg::PoseStamped::ConstSharedPtr msg)
   {
-    // NOTE: blocks the executor for up to 5 s while waiting for the server.
+    const uint64_t my_id = ++current_goal_id_;
+
+    // NOTE: blocks the single-threaded executor up to 5 s; at bringup a first goal delays
+    // ~/input/cancel until this returns. Non-blocking wait is a follow-up.
     if (!client_->wait_for_action_server(std::chrono::seconds(5))) {
       RCLCPP_ERROR(get_logger(), "navigate_to_pose action server unavailable");
       publishResult(3);  // ABORTED
@@ -66,10 +69,12 @@ private:
     goal.pose = *msg;
 
     rclcpp_action::Client<NavigateToPose>::SendGoalOptions opts;
-    opts.goal_response_callback = [this](GoalHandle::SharedPtr gh) {
+    opts.goal_response_callback = [this, my_id](GoalHandle::SharedPtr gh) {
       if (!gh) {
         RCLCPP_ERROR(get_logger(), "goal rejected by navigate_to_pose server");
-        publishResult(3);  // ABORTED
+        if (my_id == current_goal_id_) {
+          publishResult(3);  // ABORTED
+        }
       }
     };
     opts.feedback_callback =
@@ -78,7 +83,12 @@ private:
           get_logger(), *get_clock(), 5000, "distance remaining: %.1f m",
           fb->distance_remaining);
       };
-    opts.result_callback = [this](const GoalHandle::WrappedResult & r) {
+    opts.result_callback = [this, my_id](const GoalHandle::WrappedResult & r) {
+      if (my_id != current_goal_id_) {
+        // Stale result from a goal that has since been preempted by a newer one; ignore
+        // so it cannot clobber the newer goal's ~/result (latest-goal-wins is preserved).
+        return;
+      }
       switch (r.code) {
         case rclcpp_action::ResultCode::SUCCEEDED:
           publishResult(2);
@@ -111,6 +121,7 @@ private:
   rclcpp::Publisher<std_msgs::msg::UInt8>::SharedPtr pub_result_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr sub_goal_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr sub_cancel_;
+  uint64_t current_goal_id_{0};
 };
 }  // namespace autoware::nav2_offroad
 
