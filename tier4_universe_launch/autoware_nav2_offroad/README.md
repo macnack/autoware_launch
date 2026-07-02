@@ -247,6 +247,20 @@ will need to be gated explicitly.
 `local_layer:=mppi` — the tour must drive all legs, exercising
 goal → relay → BT → MPPI → bridge → gate.
 
+**Sim bringup status (2026-07-02):** a partial planning-simulator bringup in
+`local_layer:=mppi` confirmed all feature nodes launch and behave correctly —
+`controller_server` (MPPI), `bt_navigator`, `offroad_goal_relay`, and
+`cmd_vel_to_control_bridge` (which logs `bridge starts ENABLED`); with MPPI not
+yet publishing `/cmd_vel`, the bridge's stale-`cmd_vel` watchdog correctly holds
+a stop. The gate routing is verified at config level (the gate's
+`input/auto/control_cmd` remaps to `$(var auto_control_cmd_topic)` =
+`/nav2_offroad/mppi/control_cmd`, where the bridge is confirmed publishing). The
+**live gate-subscriber check and the full drive remain unverified** — blocked in
+that environment by *unrelated* workspace version skew (a `vehicle_cmd_gate`
+container-mate failing param-init, and a `nav2_lifecycle_manager`/
+`libdiagnostic_updater.so` apt mismatch), not by this feature. A clean workspace
+is needed to close the acceptance test.
+
 Key bridge parameters (`bridge` mode, `nav2_path_to_trajectory_bridge.param.yaml`):
 
 | Parameter | Default | Description |
