@@ -48,4 +48,13 @@ double computeAccelCommand(
   }
   return std::clamp(gain * err, -accel_limit_mps2, accel_limit_mps2);
 }
+
+double resolveFinalSteer(
+  double raw_steer_rad, bool near_zero_speed, bool has_started, double last_steer_rad)
+{
+  if (near_zero_speed && has_started) {
+    return last_steer_rad;
+  }
+  return raw_steer_rad;
+}
 }  // namespace autoware::nav2_offroad

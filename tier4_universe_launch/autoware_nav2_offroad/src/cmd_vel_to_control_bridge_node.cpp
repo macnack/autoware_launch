@@ -23,6 +23,7 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <std_srvs/srv/set_bool.hpp>
 
+#include <cmath>
 #include <cstdint>
 #include <memory>
 
@@ -87,6 +88,12 @@ private:
     std_srvs::srv::SetBool::Response::SharedPtr res)
   {
     enabled_ = req->data;
+    if (enabled_) {
+      // A fresh enable is a new "start of road": the wheel defaults straight
+      // at standstill until the vehicle actually begins moving.
+      has_started_ = false;
+      last_steer_ = 0.0;
+    }
     // Reset the staleness clock on enable so the watchdog doesn't fire immediately.
     last_cmd_vel_time_ = now();
     res->success = true;
@@ -107,16 +114,22 @@ private:
         : autoware_vehicle_msgs::msg::GearCommand::DRIVE;
     }
     last_gear_reverse_ = gear_cmd == autoware_vehicle_msgs::msg::GearCommand::REVERSE;
-    // twistToControl zeros steering below min_speed_for_steer_mps (undefined
-    // geometry near v=0, and the vehicle isn't moving anyway) — covers both a
-    // genuine stop (goal arrival) and a transient near-zero-speed moment alike.
+    const bool near_zero_speed = std::abs(cmd_v) < params_.min_speed_for_steer_mps;
     const auto c = twistToControl(cmd_v, msg->angular.z, params_);
+    // "Start of road" policy: only the very first standstill (before the
+    // vehicle has ever moved) defaults the wheel to straight. Every later
+    // near-zero-speed moment (gear-shift cusp, mid-route pause, the final
+    // goal-arrival stop) holds the last commanded steering angle instead.
+    const double steer = resolveFinalSteer(
+      c.steering_tire_angle_rad, near_zero_speed, has_started_, last_steer_);
+    if (!near_zero_speed) has_started_ = true;
+    last_steer_ = steer;
     autoware_control_msgs::msg::Control ctrl;
     ctrl.stamp = now();
     ctrl.longitudinal.velocity = static_cast<float>(c.velocity_mps);
     ctrl.longitudinal.acceleration = static_cast<float>(computeAccelCommand(
       c.velocity_mps, vehicle_speed_mps_, last_gear_reverse_, accel_gain_, accel_limit_mps2_));
-    ctrl.lateral.steering_tire_angle = static_cast<float>(c.steering_tire_angle_rad);
+    ctrl.lateral.steering_tire_angle = static_cast<float>(steer);
     pub_ctrl_->publish(ctrl);
     autoware_vehicle_msgs::msg::GearCommand gear;
     gear.stamp = ctrl.stamp;
@@ -138,7 +151,9 @@ private:
       // velocity field, so a 0-velocity/0-acceleration command coasts forever.
       ctrl.longitudinal.acceleration = static_cast<float>(computeAccelCommand(
         0.0, vehicle_speed_mps_, last_gear_reverse_, accel_gain_, accel_limit_mps2_));
-      ctrl.lateral.steering_tire_angle = 0.0f;
+      // Same "start of road" policy as onCmdVel: straight only before the
+      // vehicle has ever moved; otherwise hold the last commanded angle.
+      ctrl.lateral.steering_tire_angle = static_cast<float>(has_started_ ? last_steer_ : 0.0);
       pub_ctrl_->publish(ctrl);
     }
   }
@@ -146,6 +161,8 @@ private:
   BicycleParams params_;
   bool enabled_{false};
   double cmd_vel_timeout_s_{0.5};
+  bool has_started_{false};
+  double last_steer_{0.0};
   bool enable_reverse_{false};
   bool last_gear_reverse_{false};
   double vehicle_speed_mps_{0.0};

@@ -98,4 +98,29 @@ TEST(ComputeAccelCommand, ReverseGearUsesGearFrame)
   // Commanded stop while rolling backwards: brake.
   EXPECT_LT(computeAccelCommand(0.0, -2.0, true, 1.5, 3.0), 0.0);
 }
+
+using autoware::nav2_offroad::resolveFinalSteer;
+
+TEST(ResolveFinalSteer, MovingAlwaysUsesRawSteer)
+{
+  // Not near-zero speed: raw geometry wins regardless of has_started/last_steer.
+  EXPECT_DOUBLE_EQ(resolveFinalSteer(0.3, false, false, 0.0), 0.3);
+  EXPECT_DOUBLE_EQ(resolveFinalSteer(0.3, false, true, -0.5), 0.3);
+}
+
+TEST(ResolveFinalSteer, StartOfRoadZeroesSteerAtStandstill)
+{
+  // Before the vehicle has moved at all, a near-zero-speed command keeps the
+  // wheel straight (raw_steer_rad is already 0 from twistToControl here).
+  EXPECT_DOUBLE_EQ(resolveFinalSteer(0.0, true, false, 0.7), 0.0);
+}
+
+TEST(ResolveFinalSteer, OnceStartedHoldsLastSteerAtAnyLaterStop)
+{
+  // After the vehicle has begun moving, a later near-zero-speed moment (a
+  // gear-shift cusp, a mid-route pause, or the final goal-arrival stop) holds
+  // the last commanded steering angle — a real wheel doesn't self-center
+  // every time the vehicle stops.
+  EXPECT_DOUBLE_EQ(resolveFinalSteer(0.0, true, true, 0.42), 0.42);
+}
 }  // namespace

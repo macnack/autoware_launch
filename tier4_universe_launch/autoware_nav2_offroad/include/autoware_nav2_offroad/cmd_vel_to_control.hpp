@@ -43,5 +43,15 @@ ControlOut twistToControl(double v_mps, double omega_radps, const BicycleParams 
 double computeAccelCommand(
   double v_target_mps, double v_measured_mps, bool reverse_gear, double gain,
   double accel_limit_mps2);
+
+/// "Start of road" steering policy: before the vehicle has begun moving
+/// (has_started == false), a near-zero-speed command keeps the wheel straight
+/// (raw_steer_rad, which twistToControl already zeros in that case). Once it
+/// HAS started, a later near-zero-speed moment (a gear-shift cusp, a
+/// mid-route pause, the final goal-arrival stop) instead holds the last
+/// commanded steering angle — a real vehicle's wheel doesn't self-center
+/// every time it stops.
+double resolveFinalSteer(
+  double raw_steer_rad, bool near_zero_speed, bool has_started, double last_steer_rad);
 }  // namespace autoware::nav2_offroad
 #endif  // AUTOWARE_NAV2_OFFROAD__CMD_VEL_TO_CONTROL_HPP_
