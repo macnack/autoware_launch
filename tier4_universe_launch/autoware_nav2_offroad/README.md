@@ -174,6 +174,7 @@ Config files in `config/`:
 |-----|--------|---------|--------|
 | `local_layer` | `bridge` \| `mppi` \| `mppi_recovery` | `bridge` | `bridge`: path→Autoware Trajectory→`trajectory_follower` (current). `mppi`: Nav2 `controller_server` (`nav2_mppi_controller`, Ackermann) + `bt_navigator` + `local_costmap` drive the path and emit `/cmd_vel`, routed to `vehicle_cmd_gate` (see below). `mppi_recovery` (**EXPERIMENTAL**): `mppi` plus the standard Nav2 recovery layer — `behavior_server` (`wait`, `drive_on_heading`; no spin/backup, forward-only) + recovery behavior trees (RecoveryNode: retry + clear-costmap + wait) + a loosened `SmacPlannerHybrid` goal tolerance (0.5 m). Recovers from transient planner failures instead of aborting the goal. Pair with `auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd` exactly like `mppi`. |
 | `global_planner` | `smac_hybrid` \| `lattice` | `smac_hybrid` | `lattice` overlays `SmacPlannerLattice` (optional A/B test). |
+| `allow_reverse` | `true` \| `false` | `false` | `mppi_recovery` only (**EXPERIMENTAL**): reverse driving — REEDS_SHEPP planning, MPPI `vx_min: -1.5`, stop-and-shift gear sequencing in the bridge (holds a stop until \|speed\| < 0.1 m/s before any DRIVE↔REVERSE change), `backup` recovery. Ignored in other modes. |
 
 ### `mppi` mode: routing complete; end-to-end sim-drive pending
 
@@ -281,6 +282,16 @@ ros2 launch autoware_nav2_offroad planning_simulator.launch.xml \
   auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd \
   occupancy_grid_source:=perception
 ```
+
+#### Reverse (`allow_reverse:=true`)
+
+Forward-only DUBIN cannot turn around, so goals behind the vehicle are
+unreachable. `allow_reverse:=true` enables reverse end-to-end: the planner
+switches to REEDS_SHEPP (forward+reverse arcs), MPPI samples reverse
+(`vx_min: -1.5`), the cmd_vel bridge runs a stop-and-shift gear state machine
+(zero-velocity hold of the current gear until |speed| < 0.1 m/s, then shift —
+hardware never sees a direction slam), and the recovery BT gains a `BackUp`
+step. Default `false` keeps `mppi_recovery` forward-only and unchanged.
 
 Key bridge parameters (`bridge` mode, `nav2_path_to_trajectory_bridge.param.yaml`):
 
