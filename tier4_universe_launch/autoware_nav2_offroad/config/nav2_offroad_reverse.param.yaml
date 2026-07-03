@@ -1,0 +1,7 @@
+# Planner motion-model overlay for allow_reverse:=true (mppi_recovery only).
+# REEDS_SHEPP plans forward AND reverse arcs, so poses behind the vehicle
+# become reachable. reverse_penalty stays as set in nav2_offroad.param.yaml.
+planner_server:
+  ros__parameters:
+    GridBased:
+      motion_model_for_search: "REEDS_SHEPP"
