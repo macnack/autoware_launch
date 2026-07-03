@@ -261,4 +261,5 @@ Fixed by splitting the single conditional-`<param>` `planner_server` node into t
   `allow_reverse:=true` (REEDS_SHEPP + MPPI `vx_min: -1.5` + stop-and-shift gear sequencing +
   `backup` recovery); remaining: reverse speed / `reverse_penalty` tuning. (b) MPPI
   weaving/tracking tuning to reduce how often recovery triggers; (c) promote `mppi_recovery`
-  from experimental to the default MPPI mode once sim-validated.
+  from experimental to the default MPPI mode once sim-validated; (d) side-by-side
+  `local_controller` mppi-vs-rpp validation; promote the winner to default.

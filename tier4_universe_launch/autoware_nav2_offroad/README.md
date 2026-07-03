@@ -175,6 +175,7 @@ Config files in `config/`:
 | `local_layer` | `bridge` \| `mppi` \| `mppi_recovery` | `bridge` | `bridge`: path→Autoware Trajectory→`trajectory_follower` (current). `mppi`: Nav2 `controller_server` (`nav2_mppi_controller`, Ackermann) + `bt_navigator` + `local_costmap` drive the path and emit `/cmd_vel`, routed to `vehicle_cmd_gate` (see below). `mppi_recovery` (**EXPERIMENTAL**): `mppi` plus the standard Nav2 recovery layer — `behavior_server` (`wait`, `drive_on_heading`; no spin/backup, forward-only) + recovery behavior trees (RecoveryNode: retry + clear-costmap + wait) + a loosened `SmacPlannerHybrid` goal tolerance (0.5 m). Recovers from transient planner failures instead of aborting the goal. Pair with `auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd` exactly like `mppi`. |
 | `global_planner` | `smac_hybrid` \| `lattice` | `smac_hybrid` | `lattice` overlays `SmacPlannerLattice` (optional A/B test). |
 | `allow_reverse` | `true` \| `false` | `false` | `mppi_recovery` only (**EXPERIMENTAL**): reverse driving — REEDS_SHEPP planning, MPPI `vx_min: -1.5`, stop-and-shift gear sequencing in the bridge (holds a stop until \|speed\| < 0.1 m/s before any DRIVE↔REVERSE change), `backup` recovery. Ignored in other modes. |
+| `local_controller` | `mppi` \| `rpp` | `mppi` | FollowPath controller for `local_layer` `mppi`/`mppi_recovery`. `rpp`: RegulatedPurePursuit **pure tracking** — the classical split pipeline (Smac plans, RPP tracks exactly, cost-regulated slowdown is the local safety layer). Deterministic, few knobs; recommended pairing `local_layer:=mppi_recovery local_controller:=rpp`. Reverse via `allow_reverse:=true` (`allow_reversing`). |
 
 ### `mppi` mode: routing complete; end-to-end sim-drive pending
 
@@ -292,6 +293,17 @@ switches to REEDS_SHEPP (forward+reverse arcs), MPPI samples reverse
 (zero-velocity hold of the current gear until |speed| < 0.1 m/s, then shift —
 hardware never sees a direction slam), and the recovery BT gains a `BackUp`
 step. Default `false` keeps `mppi_recovery` forward-only and unchanged.
+
+#### Tracking controller (`local_controller:=rpp`)
+
+MPPI is a sampling optimizer responsible for path following, avoidance, speed and
+direction at once — powerful but tuning-heavy (weave/goal-miss/reverse-lock issues
+under low-speed off-road conditions). `local_controller:=rpp` swaps in
+RegulatedPurePursuit as a **pure tracking controller**: the Smac path (already
+kinematically feasible) is tracked geometrically; speed is regulated by curvature,
+obstacle proximity (cost-regulated scaling) and goal approach. Same
+`controller_server`, `/cmd_vel`, bridge (acceleration + gear sequencing), recovery
+BTs and gate routing. MPPI remains the default/experimental alternative.
 
 Key bridge parameters (`bridge` mode, `nav2_path_to_trajectory_bridge.param.yaml`):
 
