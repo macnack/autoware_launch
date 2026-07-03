@@ -49,4 +49,9 @@ double computeAccelCommand(
   }
   return std::clamp(gain * err, -accel_limit_mps2, accel_limit_mps2);
 }
+
+bool isFullStopCommand(double v_mps, double omega_radps, double eps)
+{
+  return std::abs(v_mps) < eps && std::abs(omega_radps) < eps;
+}
 }  // namespace autoware::nav2_offroad

@@ -95,4 +95,23 @@ TEST(ComputeAccelCommand, ReverseGearUsesGearFrame)
   // Commanded stop while rolling backwards: brake.
   EXPECT_LT(computeAccelCommand(0.0, -2.0, true, 1.5, 3.0), 0.0);
 }
+
+using autoware::nav2_offroad::isFullStopCommand;
+
+TEST(IsFullStopCommand, TrueWhenBothVelocityAndOmegaAreZero)
+{
+  // What the controller (RPP/MPPI) publishes on goal arrival: a genuine
+  // zero-Twist, not just a transiently low speed mid-maneuver.
+  EXPECT_TRUE(isFullStopCommand(0.0, 0.0, 1e-3));
+  EXPECT_TRUE(isFullStopCommand(0.0005, -0.0005, 1e-3));  // within epsilon
+}
+
+TEST(IsFullStopCommand, FalseWhenEitherIsNonZero)
+{
+  // Near-zero speed but still turning (e.g. approaching a cusp mid-maneuver):
+  // NOT a full stop — the bridge must keep holding the last steer here.
+  EXPECT_FALSE(isFullStopCommand(0.0, 0.5, 1e-3));
+  // Commanded forward motion with straight steering: not a stop either.
+  EXPECT_FALSE(isFullStopCommand(1.0, 0.0, 1e-3));
+}
 }  // namespace
