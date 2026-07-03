@@ -19,13 +19,12 @@
 
 namespace autoware::nav2_offroad
 {
-ControlOut twistToControl(
-  double v_mps, double omega_radps, const BicycleParams & p, double last_steer_rad)
+ControlOut twistToControl(double v_mps, double omega_radps, const BicycleParams & p)
 {
   ControlOut out;
   out.velocity_mps = v_mps;
   if (std::abs(v_mps) < p.min_speed_for_steer_mps) {
-    out.steering_tire_angle_rad = last_steer_rad;  // avoid divide-by-~0; hold
+    out.steering_tire_angle_rad = 0.0;  // undefined geometry near v=0; not moving anyway
     return out;
   }
   // Negative v (reverse) naturally inverts the steer sign; Nav2 supplies a sign-consistent omega.
@@ -48,10 +47,5 @@ double computeAccelCommand(
     err = -err;
   }
   return std::clamp(gain * err, -accel_limit_mps2, accel_limit_mps2);
-}
-
-bool isFullStopCommand(double v_mps, double omega_radps, double eps)
-{
-  return std::abs(v_mps) < eps && std::abs(omega_radps) < eps;
 }
 }  // namespace autoware::nav2_offroad

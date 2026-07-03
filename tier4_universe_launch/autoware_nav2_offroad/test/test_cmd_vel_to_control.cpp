@@ -26,7 +26,7 @@ using autoware::nav2_offroad::twistToControl;
 TEST(TwistToControl, StraightLineZeroSteer)
 {
   BicycleParams p;
-  const auto c = twistToControl(2.0, 0.0, p, 0.0);
+  const auto c = twistToControl(2.0, 0.0, p);
   EXPECT_DOUBLE_EQ(c.velocity_mps, 2.0);
   EXPECT_NEAR(c.steering_tire_angle_rad, 0.0, 1e-9);
 }
@@ -35,34 +35,37 @@ TEST(TwistToControl, BicycleModelSteer)
 {
   BicycleParams p; p.wheelbase_m = 2.0;
   // delta = atan(L * omega / v) = atan(2 * 0.5 / 2.0) = atan(0.5)
-  const auto c = twistToControl(2.0, 0.5, p, 0.0);
+  const auto c = twistToControl(2.0, 0.5, p);
   EXPECT_NEAR(c.steering_tire_angle_rad, std::atan(0.5), 1e-9);
 }
 
 TEST(TwistToControl, ClampsToMaxSteer)
 {
   BicycleParams p; p.wheelbase_m = 2.0; p.max_steer_rad = 0.3;
-  const auto c = twistToControl(0.5, 5.0, p, 0.0);
+  const auto c = twistToControl(0.5, 5.0, p);
   EXPECT_NEAR(c.steering_tire_angle_rad, 0.3, 1e-9);
 }
 
-TEST(TwistToControl, ZeroSpeedHoldsLastSteer)
+TEST(TwistToControl, ZeroSpeedZeroesSteer)
 {
+  // Below min_speed_for_steer_mps the steering geometry (atan(L*omega/v)) is
+  // undefined/unstable, and the vehicle isn't moving anyway — no steering
+  // command is meaningful, so output 0 rather than holding a stale angle.
   BicycleParams p; p.min_speed_for_steer_mps = 0.1;
-  const auto c = twistToControl(0.0, 1.0, p, 0.25);
-  EXPECT_DOUBLE_EQ(c.steering_tire_angle_rad, 0.25);  // holds last
+  const auto c = twistToControl(0.0, 1.0, p);
+  EXPECT_DOUBLE_EQ(c.steering_tire_angle_rad, 0.0);
   EXPECT_DOUBLE_EQ(c.velocity_mps, 0.0);
 }
 TEST(TwistToControl, ReverseVelocityProducesSignConsistentSteer)
 {
   BicycleParams p; p.wheelbase_m = 2.0; p.max_steer_rad = 1.0;
   // Reverse motion: atan(2.0 * 0.5 / -2.0) = atan(-0.5), steer must be negative.
-  const auto c = twistToControl(-2.0, 0.5, p, 0.0);
+  const auto c = twistToControl(-2.0, 0.5, p);
   EXPECT_DOUBLE_EQ(c.velocity_mps, -2.0);
   EXPECT_NEAR(c.steering_tire_angle_rad, std::atan(2.0 * 0.5 / -2.0), 1e-9);
-  // Reverse low-speed: |v| < min_speed_for_steer_mps, hold last steer.
-  const auto c2 = twistToControl(-0.05, 1.0, p, 0.25);
-  EXPECT_DOUBLE_EQ(c2.steering_tire_angle_rad, 0.25);
+  // Reverse low-speed: |v| < min_speed_for_steer_mps -> zero steer.
+  const auto c2 = twistToControl(-0.05, 1.0, p);
+  EXPECT_DOUBLE_EQ(c2.steering_tire_angle_rad, 0.0);
   EXPECT_DOUBLE_EQ(c2.velocity_mps, -0.05);
 }
 
@@ -94,24 +97,5 @@ TEST(ComputeAccelCommand, ReverseGearUsesGearFrame)
   EXPECT_DOUBLE_EQ(computeAccelCommand(-1.5, -3.0, true, 1.5, 3.0), -2.25);
   // Commanded stop while rolling backwards: brake.
   EXPECT_LT(computeAccelCommand(0.0, -2.0, true, 1.5, 3.0), 0.0);
-}
-
-using autoware::nav2_offroad::isFullStopCommand;
-
-TEST(IsFullStopCommand, TrueWhenBothVelocityAndOmegaAreZero)
-{
-  // What the controller (RPP/MPPI) publishes on goal arrival: a genuine
-  // zero-Twist, not just a transiently low speed mid-maneuver.
-  EXPECT_TRUE(isFullStopCommand(0.0, 0.0, 1e-3));
-  EXPECT_TRUE(isFullStopCommand(0.0005, -0.0005, 1e-3));  // within epsilon
-}
-
-TEST(IsFullStopCommand, FalseWhenEitherIsNonZero)
-{
-  // Near-zero speed but still turning (e.g. approaching a cusp mid-maneuver):
-  // NOT a full stop — the bridge must keep holding the last steer here.
-  EXPECT_FALSE(isFullStopCommand(0.0, 0.5, 1e-3));
-  // Commanded forward motion with straight steering: not a stop either.
-  EXPECT_FALSE(isFullStopCommand(1.0, 0.0, 1e-3));
 }
 }  // namespace

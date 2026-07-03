@@ -87,7 +87,6 @@ private:
     std_srvs::srv::SetBool::Response::SharedPtr res)
   {
     enabled_ = req->data;
-    if (!enabled_) last_steer_ = 0.0;
     // Reset the staleness clock on enable so the watchdog doesn't fire immediately.
     last_cmd_vel_time_ = now();
     res->success = true;
@@ -108,15 +107,10 @@ private:
         : autoware_vehicle_msgs::msg::GearCommand::DRIVE;
     }
     last_gear_reverse_ = gear_cmd == autoware_vehicle_msgs::msg::GearCommand::REVERSE;
-    // A genuine full stop (both velocity and rotation commanded to zero — what the
-    // controller publishes on goal arrival) zeros the wheel too; a transiently low
-    // speed while still turning (e.g. approaching a cusp mid-maneuver) still holds
-    // the last steer via twistToControl, to avoid divide-by-~0 chatter.
-    const bool full_stop = isFullStopCommand(cmd_v, msg->angular.z, 1e-3);
-    const auto c = full_stop
-      ? ControlOut{0.0, 0.0}
-      : twistToControl(cmd_v, msg->angular.z, params_, last_steer_);
-    last_steer_ = c.steering_tire_angle_rad;
+    // twistToControl zeros steering below min_speed_for_steer_mps (undefined
+    // geometry near v=0, and the vehicle isn't moving anyway) — covers both a
+    // genuine stop (goal arrival) and a transient near-zero-speed moment alike.
+    const auto c = twistToControl(cmd_v, msg->angular.z, params_);
     autoware_control_msgs::msg::Control ctrl;
     ctrl.stamp = now();
     ctrl.longitudinal.velocity = static_cast<float>(c.velocity_mps);
@@ -137,7 +131,6 @@ private:
     if (age_s > cmd_vel_timeout_s_) {
       RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
         "cmd_vel stale (%.2f s > %.2f s); holding stop", age_s, cmd_vel_timeout_s_);
-      last_steer_ = 0.0;
       autoware_control_msgs::msg::Control ctrl;
       ctrl.stamp = now();
       ctrl.longitudinal.velocity = 0.0f;
@@ -145,8 +138,6 @@ private:
       // velocity field, so a 0-velocity/0-acceleration command coasts forever.
       ctrl.longitudinal.acceleration = static_cast<float>(computeAccelCommand(
         0.0, vehicle_speed_mps_, last_gear_reverse_, accel_gain_, accel_limit_mps2_));
-      // Stale cmd_vel means the controller has gone silent (goal reached, action
-      // ended, or a fault) — a real stop, so zero the wheel too, not hold it.
       ctrl.lateral.steering_tire_angle = 0.0f;
       pub_ctrl_->publish(ctrl);
     }
@@ -154,7 +145,6 @@ private:
 
   BicycleParams params_;
   bool enabled_{false};
-  double last_steer_{0.0};
   double cmd_vel_timeout_s_{0.5};
   bool enable_reverse_{false};
   bool last_gear_reverse_{false};

@@ -28,8 +28,10 @@ struct ControlOut
   double velocity_mps{0.0};
   double steering_tire_angle_rad{0.0};
 };
-ControlOut twistToControl(
-  double v_mps, double omega_radps, const BicycleParams & p, double last_steer_rad);
+/// Below p.min_speed_for_steer_mps the steering angle is 0 — the geometry
+/// (atan(L*omega/v)) is undefined/unstable near v=0, and the vehicle isn't
+/// moving anyway, so no steering command is meaningful.
+ControlOut twistToControl(double v_mps, double omega_radps, const BicycleParams & p);
 
 /// Longitudinal acceleration command for velocity-tracking on acceleration-driven
 /// vehicle interfaces (e.g. simple_planning_simulator ACC_GEARED, most real
@@ -41,12 +43,5 @@ ControlOut twistToControl(
 double computeAccelCommand(
   double v_target_mps, double v_measured_mps, bool reverse_gear, double gain,
   double accel_limit_mps2);
-
-/// True when the commanded twist is a genuine full stop (both linear.x and
-/// angular.z within eps of zero) — what the controller (RPP/MPPI) publishes on
-/// goal arrival — as opposed to a transiently low forward speed while still
-/// turning (e.g. approaching a direction-change cusp), where holding the last
-/// steering angle is still correct.
-bool isFullStopCommand(double v_mps, double omega_radps, double eps);
 }  // namespace autoware::nav2_offroad
 #endif  // AUTOWARE_NAV2_OFFROAD__CMD_VEL_TO_CONTROL_HPP_
