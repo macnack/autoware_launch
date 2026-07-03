@@ -27,7 +27,7 @@ controller_server:
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 1.5      # forward-only: position goal; a small overshoot still counts
-      yaw_goal_tolerance: 3.15    # ignore final heading (forward-only cannot align a pose)
+      yaw_goal_tolerance: 0.1745  # +-10 deg; with reverse (allow_reverse) the vehicle can align a pose
       stateful: true
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
