@@ -1,0 +1,23 @@
+<!--
+  Recovery-free NavigateToPose behavior tree for the MPPI off-road local layer.
+
+  The stock Nav2 BTs (navigate_to_pose/through_poses_w_replanning_and_recovery.xml)
+  invoke spin/backup/wait recovery actions served by behavior_server (nav2_behaviors).
+  The off-road launch does not run behavior_server, and spin/backup are inappropriate
+  for a forward-only off-road vehicle anyway. This BT does only what mppi mode needs:
+  replan the global path at 1 Hz (ComputePathToPose, planner GridBased) and follow it
+  (FollowPath, controller FollowPath) — no recovery servers required.
+
+  BT.CPP v3 syntax (ROS 2 Humble). planner_id/controller_id must match
+  nav2_offroad.param.yaml (GridBased) and nav2_mppi_controller.param.yaml (FollowPath).
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <PipelineSequence name="NavigateWithReplanning">
+      <RateController hz="1.0">
+        <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+      </RateController>
+      <FollowPath path="{path}" controller_id="FollowPath"/>
+    </PipelineSequence>
+  </BehaviorTree>
+</root>

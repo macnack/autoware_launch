@@ -1,0 +1,22 @@
+<!--
+  Recovery-free NavigateThroughPoses behavior tree for the MPPI off-road local layer.
+
+  bt_navigator (Humble) instantiates the navigate_through_poses navigator even when it is
+  not the active one, so its default BT must also avoid the spin/backup/wait recovery
+  actions that behavior_server (not run in off-road) would provide. This BT only replans
+  through the goal poses at 1 Hz (ComputePathThroughPoses, planner GridBased) and follows
+  the path (FollowPath, controller FollowPath).
+
+  BT.CPP v3 syntax (ROS 2 Humble). See navigate_to_pose_no_recovery.xml for the single-goal
+  counterpart actually used by the off-road goal relay (NavigateToPose).
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <PipelineSequence name="NavigateWithReplanning">
+      <RateController hz="1.0">
+        <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="GridBased"/>
+      </RateController>
+      <FollowPath path="{path}" controller_id="FollowPath"/>
+    </PipelineSequence>
+  </BehaviorTree>
+</root>

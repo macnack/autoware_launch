@@ -115,6 +115,14 @@
   <node pkg="nav2_bt_navigator" exec="bt_navigator" name="bt_navigator" output="screen"
         if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')">
     <param from="$(var bt_nav_param_file)"/>
+    <!-- Recovery-free BTs: the off-road launch runs no behavior_server, so the stock
+         recovery BTs (spin/backup/wait) fail to load and bt_navigator never activates.
+         bt_navigator (Humble) instantiates BOTH navigators regardless of the `navigators`
+         list, so the through_poses default BT must be recovery-free too. -->
+    <param name="default_nav_to_pose_bt_xml"
+           value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_to_pose_no_recovery.xml"/>
+    <param name="default_nav_through_poses_bt_xml"
+           value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_through_poses_no_recovery.xml"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
   </node>
 
