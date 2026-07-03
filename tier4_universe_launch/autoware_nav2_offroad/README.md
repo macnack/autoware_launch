@@ -172,7 +172,7 @@ Config files in `config/`:
 
 | Arg | Values | Default | Effect |
 |-----|--------|---------|--------|
-| `local_layer` | `bridge` \| `mppi` | `bridge` | `bridge`: path→Autoware Trajectory→`trajectory_follower` (current). `mppi`: Nav2 `controller_server` (`nav2_mppi_controller`, Ackermann) + `bt_navigator` + `local_costmap` drive the path and emit `/cmd_vel`, routed to `vehicle_cmd_gate` (see below). |
+| `local_layer` | `bridge` \| `mppi` \| `mppi_recovery` | `bridge` | `bridge`: path→Autoware Trajectory→`trajectory_follower` (current). `mppi`: Nav2 `controller_server` (`nav2_mppi_controller`, Ackermann) + `bt_navigator` + `local_costmap` drive the path and emit `/cmd_vel`, routed to `vehicle_cmd_gate` (see below). `mppi_recovery` (**EXPERIMENTAL**): `mppi` plus the standard Nav2 recovery layer — `behavior_server` (`wait`, `drive_on_heading`; no spin/backup, forward-only) + recovery behavior trees (RecoveryNode: retry + clear-costmap + wait) + a loosened `SmacPlannerHybrid` goal tolerance (0.5 m). Recovers from transient planner failures instead of aborting the goal. Pair with `auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd` exactly like `mppi`. |
 | `global_planner` | `smac_hybrid` \| `lattice` | `smac_hybrid` | `lattice` overlays `SmacPlannerLattice` (optional A/B test). |
 
 ### `mppi` mode: routing complete; end-to-end sim-drive pending
@@ -260,6 +260,27 @@ that environment by *unrelated* workspace version skew (a `vehicle_cmd_gate`
 container-mate failing param-init, and a `nav2_lifecycle_manager`/
 `libdiagnostic_updater.so` apt mismatch), not by this feature. A clean workspace
 is needed to close the acceptance test.
+
+### Experimental: `local_layer:=mppi_recovery`
+
+Same drive chain as `mppi` (goal → relay → `bt_navigator` → planner → MPPI →
+bridge → gate) but with the standard Nav2 robustness layer so a single planner
+failure recovers instead of aborting: a lifecycle-managed `behavior_server`
+(forward-only `wait` + `drive_on_heading`), recovery behavior trees that retry
+`ComputePathToPose` with `ClearEntireCostmap` + `Wait` between attempts, and a
+loosened `SmacPlannerHybrid` goal tolerance (0.5 m, more approach iterations).
+Forward-only; no reverse, no spin/backup. Marked experimental until the sim
+acceptance (behavior_server activates; a ~22 m straight goal that aborts in
+`mppi` mode reaches in `mppi_recovery`) is validated on a clean workspace.
+
+```bash
+ros2 launch autoware_nav2_offroad planning_simulator.launch.xml \
+  map_path:=$HOME/autoware_map/sample-map-planning \
+  vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit \
+  navigation_mode:=nav2_offroad local_layer:=mppi_recovery \
+  auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd \
+  occupancy_grid_source:=perception
+```
 
 Key bridge parameters (`bridge` mode, `nav2_path_to_trajectory_bridge.param.yaml`):
 

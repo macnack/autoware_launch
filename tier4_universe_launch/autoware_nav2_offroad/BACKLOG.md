@@ -257,3 +257,7 @@ Fixed by splitting the single conditional-`<param>` `planner_server` node into t
   bridge, same shape as BACKLOG #6's reverse work — deferred follow-up.
 - **GPU / critic tuning:** add a dynamic-obstacle critic, tune critic weights, provision a
   GPU for MPPI's parallel rollouts, watch for local minima.
+- **`mppi_recovery` follow-ups (EXPERIMENTAL mode):** (a) reverse variant (REEDS_SHEPP planner
+  + MPPI reverse + `backup` recovery) to fix exact-pose alignment that forward-only DUBIN
+  cannot; (b) MPPI weaving/tracking tuning to reduce how often recovery triggers; (c) promote
+  `mppi_recovery` from experimental to the default MPPI mode once sim-validated.
