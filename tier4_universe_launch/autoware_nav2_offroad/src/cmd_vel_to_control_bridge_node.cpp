@@ -13,14 +13,17 @@
 // limitations under the License.
 
 #include "autoware_nav2_offroad/cmd_vel_to_control.hpp"
+#include "autoware_nav2_offroad/gear_arbiter.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 
 #include <autoware_control_msgs/msg/control.hpp>
 #include <autoware_vehicle_msgs/msg/gear_command.hpp>
 #include <geometry_msgs/msg/twist.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 #include <std_srvs/srv/set_bool.hpp>
 
+#include <cstdint>
 #include <memory>
 
 namespace autoware::nav2_offroad
@@ -38,6 +41,19 @@ public:
     enabled_ = declare_parameter<bool>("initial_enabled", false);
     if (enabled_) {
       RCLCPP_INFO(get_logger(), "bridge starts ENABLED (initial_enabled=true)");
+    }
+
+    enable_reverse_ = declare_parameter<bool>("enable_reverse", false);
+    if (enable_reverse_) {
+      const double stop_thr = declare_parameter<double>("gear_stop_threshold_mps", 0.1);
+      const double deadband = declare_parameter<double>("gear_deadband_mps", 0.05);
+      arbiter_ = std::make_unique<GearArbiter>(stop_thr, deadband);
+      sub_odom_ = create_subscription<nav_msgs::msg::Odometry>(
+        "~/input/kinematic_state", rclcpp::QoS(1),
+        [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) {
+          vehicle_speed_mps_ = msg->twist.twist.linear.x;
+        });
+      RCLCPP_INFO(get_logger(), "reverse ENABLED (stop-and-shift gear sequencing)");
     }
 
     pub_ctrl_ = create_publisher<autoware_control_msgs::msg::Control>(
@@ -71,7 +87,16 @@ private:
   {
     if (!enabled_) return;
     last_cmd_vel_time_ = now();
-    const auto c = twistToControl(msg->linear.x, msg->angular.z, params_, last_steer_);
+    double cmd_v = msg->linear.x;
+    uint8_t gear_cmd = autoware_vehicle_msgs::msg::GearCommand::DRIVE;
+    if (enable_reverse_) {
+      const auto arb = arbiter_->update(cmd_v, vehicle_speed_mps_);
+      cmd_v = arb.velocity_mps;
+      gear_cmd = arb.gear == Gear::REVERSE
+        ? autoware_vehicle_msgs::msg::GearCommand::REVERSE
+        : autoware_vehicle_msgs::msg::GearCommand::DRIVE;
+    }
+    const auto c = twistToControl(cmd_v, msg->angular.z, params_, last_steer_);
     last_steer_ = c.steering_tire_angle_rad;
     autoware_control_msgs::msg::Control ctrl;
     ctrl.stamp = now();
@@ -80,7 +105,7 @@ private:
     pub_ctrl_->publish(ctrl);
     autoware_vehicle_msgs::msg::GearCommand gear;
     gear.stamp = ctrl.stamp;
-    gear.command = autoware_vehicle_msgs::msg::GearCommand::DRIVE;
+    gear.command = gear_cmd;
     pub_gear_->publish(gear);
   }
 
@@ -103,6 +128,10 @@ private:
   bool enabled_{false};
   double last_steer_{0.0};
   double cmd_vel_timeout_s_{0.5};
+  bool enable_reverse_{false};
+  double vehicle_speed_mps_{0.0};
+  std::unique_ptr<GearArbiter> arbiter_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_;
   rclcpp::Time last_cmd_vel_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Publisher<autoware_control_msgs::msg::Control>::SharedPtr pub_ctrl_;
   rclcpp::Publisher<autoware_vehicle_msgs::msg::GearCommand>::SharedPtr pub_gear_;

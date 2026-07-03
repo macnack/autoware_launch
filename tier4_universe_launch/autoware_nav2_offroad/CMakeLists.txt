@@ -214,6 +214,7 @@ ament_target_dependencies(cmd_vel_to_control_bridge_node
   autoware_control_msgs
   autoware_vehicle_msgs
   geometry_msgs
+  nav_msgs
   rclcpp
   std_srvs
 )
