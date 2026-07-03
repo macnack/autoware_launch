@@ -33,6 +33,8 @@
   <arg name="local_layer" default="bridge" description="bridge | mppi | mppi_recovery (mppi_recovery = EXPERIMENTAL: mppi + behavior_server + recovery BTs + loosened planner)"/>
   <arg name="allow_reverse" default="false"
        description="mppi_recovery only (EXPERIMENTAL): enable reverse driving — REEDS_SHEPP planning, MPPI vx_min&lt;0, stop-and-shift gear sequencing, backup recovery. Ignored in other modes."/>
+  <arg name="local_controller" default="mppi"
+       description="mppi | rpp — FollowPath controller for local_layer mppi/mppi_recovery. rpp = RegulatedPurePursuit pure tracking (split pipeline: Smac plans, RPP tracks, cost-regulated slowdown is the local safety layer)."/>
   <!-- Global planner A/B (BACKLOG #11): smac_hybrid (default) | lattice. -->
   <arg name="global_planner" default="smac_hybrid" description="smac_hybrid | lattice"/>
   <arg name="mppi_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_mppi_controller.param.yaml"/>
@@ -44,6 +46,13 @@
   <!-- reverse is only meaningful in mppi_recovery; all reverse selections key off this -->
   <let name="reverse_active"
        value="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot; and &quot;$(var allow_reverse)&quot;==&quot;true&quot;')"/>
+
+  <!-- FollowPath controller selection: a <let>-chosen FILE (never string param overrides). -->
+  <let name="controller_param_file"
+       value="$(var mppi_param_file)"/>
+  <let name="controller_param_file"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_rpp_controller.param.yaml"
+       if="$(eval '&quot;$(var local_controller)&quot;==&quot;rpp&quot;')"/>
 
   <!-- lifecycle node list depends on the local layer -->
   <let name="lifecycle_nodes" value="[planner_server, smoother_server]"
@@ -82,11 +91,17 @@
   <let name="planner_motion_overlay"
        value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_offroad_reverse.param.yaml"
        if="$(var reverse_active)"/>
-  <let name="mppi_motion_overlay"
+  <let name="controller_motion_overlay"
        value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_mppi_forward.param.yaml"/>
-  <let name="mppi_motion_overlay"
+  <let name="controller_motion_overlay"
        value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_mppi_reverse.param.yaml"
        if="$(var reverse_active)"/>
+  <let name="controller_motion_overlay"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_rpp_forward.param.yaml"
+       if="$(eval '&quot;$(var local_controller)&quot;==&quot;rpp&quot;')"/>
+  <let name="controller_motion_overlay"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_rpp_reverse.param.yaml"
+       if="$(eval '&quot;$(var local_controller)&quot;==&quot;rpp&quot; and &quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot; and &quot;$(var allow_reverse)&quot;==&quot;true&quot;')"/>
   <let name="behavior_server_param_file"
        value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_behavior_server.param.yaml"/>
   <let name="behavior_server_param_file"
@@ -157,8 +172,8 @@
   <!-- MPPI local layer (local_layer:=mppi). BACKLOG #11. -->
   <node pkg="nav2_controller" exec="controller_server" name="controller_server" output="screen"
         if="$(eval '&quot;$(var local_layer)&quot; in [&quot;mppi&quot;,&quot;mppi_recovery&quot;]')">
-    <param from="$(var mppi_param_file)"/>
-    <param from="$(var mppi_motion_overlay)"/>
+    <param from="$(var controller_param_file)"/>
+    <param from="$(var controller_motion_overlay)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="local_costmap.local_costmap.use_sim_time" value="$(var use_sim_time)"/>
   </node>
