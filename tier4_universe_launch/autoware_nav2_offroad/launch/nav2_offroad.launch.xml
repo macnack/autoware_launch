@@ -70,6 +70,16 @@
        unless="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
   <let name="planner_approach_iters" value="8000"
        if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <!-- mppi_recovery loosens the goal checker so a forward-only vehicle that overshoots by a
+       little still registers "reached" instead of looping; yaw is ignored (position goal). -->
+  <let name="goal_xy_tol" value="0.5"
+       unless="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="goal_xy_tol" value="1.5"
+       if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="goal_yaw_tol" value="0.25"
+       unless="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="goal_yaw_tol" value="3.15"
+       if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
 
   <node pkg="autoware_nav2_offroad" exec="free_map_publisher_node" name="free_map_publisher" output="screen"
         if="$(eval '&quot;$(var occupancy_grid_source)&quot;==&quot;free&quot;')">
@@ -142,6 +152,9 @@
     <param from="$(var mppi_param_file)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="local_costmap.local_costmap.use_sim_time" value="$(var use_sim_time)"/>
+    <!-- goal-checker tolerance: config default for mppi; loosened for mppi_recovery (see lets). -->
+    <param name="goal_checker.xy_goal_tolerance" value="$(var goal_xy_tol)"/>
+    <param name="goal_checker.yaw_goal_tolerance" value="$(var goal_yaw_tol)"/>
   </node>
 
   <node pkg="nav2_bt_navigator" exec="bt_navigator" name="bt_navigator" output="screen"
