@@ -31,6 +31,8 @@
                    drivable when `auto_control_cmd_topic` is set to
                    /nav2_offroad/mppi/control_cmd at the top level (see Task 4). -->
   <arg name="local_layer" default="bridge" description="bridge | mppi | mppi_recovery (mppi_recovery = EXPERIMENTAL: mppi + behavior_server + recovery BTs + loosened planner)"/>
+  <arg name="allow_reverse" default="false"
+       description="mppi_recovery only (EXPERIMENTAL): enable reverse driving — REEDS_SHEPP planning, MPPI vx_min&lt;0, stop-and-shift gear sequencing, backup recovery. Ignored in other modes."/>
   <!-- Global planner A/B (BACKLOG #11): smac_hybrid (default) | lattice. -->
   <arg name="global_planner" default="smac_hybrid" description="smac_hybrid | lattice"/>
   <arg name="mppi_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_mppi_controller.param.yaml"/>
@@ -38,6 +40,10 @@
   <arg name="lattice_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_smac_lattice.param.yaml"/>
   <arg name="vehicle_wheelbase_m" default="2.7"/>
   <arg name="cmd_vel_bridge_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/cmd_vel_to_control.param.yaml"/>
+
+  <!-- reverse is only meaningful in mppi_recovery; all reverse selections key off this -->
+  <let name="reverse_active"
+       value="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot; and &quot;$(var allow_reverse)&quot;==&quot;true&quot;')"/>
 
   <!-- lifecycle node list depends on the local layer -->
   <let name="lifecycle_nodes" value="[planner_server, smoother_server]"
@@ -62,6 +68,30 @@
   <let name="bt_through_poses_xml"
        value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_through_poses_recovery_offroad.xml"
        if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="bt_to_pose_xml"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_to_pose_recovery_reverse_offroad.xml"
+       if="$(var reverse_active)"/>
+  <let name="bt_through_poses_xml"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_through_poses_recovery_reverse_offroad.xml"
+       if="$(var reverse_active)"/>
+
+  <!-- reverse/forward selection is always a FILE chosen by <let> — a string
+       <param value> cannot override a typed double (silent no-op; bit us once). -->
+  <let name="planner_motion_overlay"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_offroad_forward.param.yaml"/>
+  <let name="planner_motion_overlay"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_offroad_reverse.param.yaml"
+       if="$(var reverse_active)"/>
+  <let name="mppi_motion_overlay"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_mppi_forward.param.yaml"/>
+  <let name="mppi_motion_overlay"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_mppi_reverse.param.yaml"
+       if="$(var reverse_active)"/>
+  <let name="behavior_server_param_file"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_behavior_server.param.yaml"/>
+  <let name="behavior_server_param_file"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/nav2_behavior_server_reverse.param.yaml"
+       if="$(var reverse_active)"/>
 
   <node pkg="autoware_nav2_offroad" exec="free_map_publisher_node" name="free_map_publisher" output="screen"
         if="$(eval '&quot;$(var occupancy_grid_source)&quot;==&quot;free&quot;')">
@@ -91,6 +121,7 @@
   <node pkg="nav2_planner" exec="planner_server" name="planner_server" output="screen"
         unless="$(eval '&quot;$(var global_planner)&quot;==&quot;lattice&quot;')">
     <param from="$(var nav2_param_file)"/>
+    <param from="$(var planner_motion_overlay)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="global_costmap.global_costmap.use_sim_time" value="$(var use_sim_time)"/>
   </node>
@@ -101,6 +132,7 @@
         if="$(eval '&quot;$(var global_planner)&quot;==&quot;lattice&quot;')">
     <param from="$(var nav2_param_file)"/>
     <param from="$(var lattice_param_file)"/>
+    <param from="$(var planner_motion_overlay)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="global_costmap.global_costmap.use_sim_time" value="$(var use_sim_time)"/>
   </node>
@@ -126,6 +158,7 @@
   <node pkg="nav2_controller" exec="controller_server" name="controller_server" output="screen"
         if="$(eval '&quot;$(var local_layer)&quot; in [&quot;mppi&quot;,&quot;mppi_recovery&quot;]')">
     <param from="$(var mppi_param_file)"/>
+    <param from="$(var mppi_motion_overlay)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="local_costmap.local_costmap.use_sim_time" value="$(var use_sim_time)"/>
   </node>
@@ -145,7 +178,7 @@
   <!-- mppi_recovery only: recovery action servers (wait, drive_on_heading) for the recovery BTs. -->
   <node pkg="nav2_behaviors" exec="behavior_server" name="behavior_server" output="screen"
         if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')">
-    <param from="$(find-pkg-share autoware_nav2_offroad)/config/nav2_behavior_server.param.yaml"/>
+    <param from="$(var behavior_server_param_file)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
   </node>
 
@@ -165,7 +198,9 @@
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="wheelbase_m" value="$(var vehicle_wheelbase_m)"/>
     <param name="initial_enabled" value="true"/>
+    <param name="enable_reverse" value="$(var reverse_active)"/>
     <remap from="~/input/cmd_vel" to="/cmd_vel"/>
+    <remap from="~/input/kinematic_state" to="/localization/kinematic_state"/>
     <remap from="~/output/control_cmd" to="/nav2_offroad/mppi/control_cmd"/>
     <remap from="~/output/gear_cmd" to="/planning/gear_cmd"/>
   </node>
