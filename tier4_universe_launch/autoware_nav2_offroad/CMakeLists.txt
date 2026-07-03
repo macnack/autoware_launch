@@ -194,6 +194,7 @@ ament_target_dependencies(return_home_node
 
 add_library(autoware_nav2_offroad_cmd_vel_to_control
   src/cmd_vel_to_control.cpp
+  src/gear_arbiter.cpp
 )
 target_include_directories(autoware_nav2_offroad_cmd_vel_to_control PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -351,6 +352,18 @@ if(BUILD_TESTING)
       autoware_nav2_offroad_cmd_vel_to_control
     )
     target_include_directories(test_cmd_vel_to_control PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+  endif()
+
+  ament_add_gtest(test_gear_arbiter
+    test/test_gear_arbiter.cpp
+  )
+  if(TARGET test_gear_arbiter)
+    target_link_libraries(test_gear_arbiter
+      autoware_nav2_offroad_cmd_vel_to_control
+    )
+    target_include_directories(test_gear_arbiter PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
   endif()
