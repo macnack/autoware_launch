@@ -113,34 +113,5 @@ controller_server:
         max_angle_to_furthest: 1.0
         mode: 0
 
-# Rolling local costmap MPPI evaluates its critics against. Mirrors the global
-# costmap's occupancy source (static + inflation). A real sensor-based obstacle /
-# voxel / traversability layer is BACKLOG #4.
-local_costmap:
-  local_costmap:
-    ros__parameters:
-      update_frequency: 5.0
-      publish_frequency: 2.0
-      global_frame: map
-      robot_base_frame: base_link
-      use_sim_time: false
-      rolling_window: true
-      # 6x6 was degenerate: with robot_radius 1.5 + inflation_radius 2.0 the whole
-      # +-3 m window was inflated cost (ObstaclesCritic gradient everywhere -> weave),
-      # and the 2.8 s rollout horizon (7 m at vx_max) left the map every cycle.
-      width: 24
-      height: 24
-      resolution: 0.5
-      robot_radius: 1.5
-      track_unknown_space: false
-      plugins: ["static_layer", "inflation_layer"]
-      static_layer:
-        plugin: "nav2_costmap_2d::StaticLayer"
-        map_topic: /nav2_offroad/costmap/occupancy_grid
-        map_subscribe_transient_local: true
-        subscribe_to_updates: false
-      inflation_layer:
-        plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 2.0
-      always_send_full_costmap: true
+# local_costmap is loaded separately — see nav2_offroad_local_costmap.param.yaml,
+# shared with the RPP controller config so the two can't drift out of sync.
