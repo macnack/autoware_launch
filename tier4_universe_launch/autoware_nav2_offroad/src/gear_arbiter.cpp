@@ -26,14 +26,22 @@ GearArbiterOut GearArbiter::update(double cmd_v_mps, double vehicle_speed_mps)
   }
   const Gear desired = cmd_v_mps > 0.0 ? Gear::DRIVE : Gear::REVERSE;
   if (desired == gear_) {
+    flip_request_count_ = 0;
     return {gear_, cmd_v_mps};
   }
-  // Direction flip requested: hold current gear + command stop until nearly
+  // Direction flip requested. Debounce first: the request must persist —
+  // transient controller dither must not thrash gears (each shift costs a
+  // full stop). Then hold current gear + command stop until nearly
   // stationary, then shift and pass the new-direction command through.
+  ++flip_request_count_;
+  if (flip_request_count_ < flip_persistence_updates_) {
+    return {gear_, 0.0};
+  }
   if (std::abs(vehicle_speed_mps) >= stop_threshold_mps_) {
     return {gear_, 0.0};
   }
   gear_ = desired;
+  flip_request_count_ = 0;
   return {gear_, cmd_v_mps};
 }
 }  // namespace autoware::nav2_offroad

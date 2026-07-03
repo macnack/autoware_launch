@@ -32,8 +32,14 @@ struct GearArbiterOut
 class GearArbiter
 {
 public:
-  GearArbiter(double stop_threshold_mps, double deadband_mps)
-  : stop_threshold_mps_(stop_threshold_mps), deadband_mps_(deadband_mps)
+  /// flip_persistence_updates: a direction-flip request must persist this many
+  /// consecutive update() calls before the shift is honored ("negative reward"
+  /// for gear changes at the execution level — MPPI dither must not thrash
+  /// gears; each real shift already costs a full stop). 1 = no debounce.
+  GearArbiter(double stop_threshold_mps, double deadband_mps, int flip_persistence_updates = 1)
+  : stop_threshold_mps_(stop_threshold_mps),
+    deadband_mps_(deadband_mps),
+    flip_persistence_updates_(flip_persistence_updates)
   {
   }
 
@@ -43,6 +49,8 @@ private:
   Gear gear_{Gear::DRIVE};
   double stop_threshold_mps_;
   double deadband_mps_;
+  int flip_persistence_updates_;
+  int flip_request_count_{0};
 };
 }  // namespace autoware::nav2_offroad
 #endif  // AUTOWARE_NAV2_OFFROAD__GEAR_ARBITER_HPP_

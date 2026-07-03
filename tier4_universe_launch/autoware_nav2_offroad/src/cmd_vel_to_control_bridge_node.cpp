@@ -59,7 +59,11 @@ public:
     if (enable_reverse_) {
       const double stop_thr = declare_parameter<double>("gear_stop_threshold_mps", 0.1);
       const double deadband = declare_parameter<double>("gear_deadband_mps", 0.05);
-      arbiter_ = std::make_unique<GearArbiter>(stop_thr, deadband);
+      // ~0.4 s of persistent opposite-direction commands (at MPPI's ~20 Hz)
+      // before a shift is honored — transient dither must not thrash gears.
+      const int flip_persist = static_cast<int>(
+        declare_parameter<int>("gear_flip_persistence_updates", 8));
+      arbiter_ = std::make_unique<GearArbiter>(stop_thr, deadband, flip_persist);
       RCLCPP_INFO(get_logger(), "reverse ENABLED (stop-and-shift gear sequencing)");
     }
 

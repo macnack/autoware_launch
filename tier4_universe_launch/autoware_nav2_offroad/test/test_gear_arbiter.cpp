@@ -81,3 +81,39 @@ TEST(GearArbiter, no_gear_change_is_ever_emitted_while_rolling)
     EXPECT_EQ(out.gear, an::Gear::DRIVE) << "shifted at speed " << sp;
   }
 }
+
+TEST(GearArbiter, flip_debounce_ignores_transient_direction_dither)
+{
+  // persistence = 4: a flip request must persist 4 consecutive updates before
+  // the shift is honored, even at standstill (MPPI dither must not thrash gears).
+  an::GearArbiter a(0.1, 0.05, 4);
+  a.update(1.0, 0.0);                     // DRIVE established
+  // 3 reverse requests, then forward again: NO shift.
+  for (int i = 0; i < 3; ++i) {
+    const auto out = a.update(-0.5, 0.0);
+    EXPECT_EQ(out.gear, an::Gear::DRIVE);
+    EXPECT_DOUBLE_EQ(out.velocity_mps, 0.0);
+  }
+  auto out = a.update(0.8, 0.0);
+  EXPECT_EQ(out.gear, an::Gear::DRIVE);   // dither absorbed, still DRIVE
+  EXPECT_DOUBLE_EQ(out.velocity_mps, 0.8);
+  // A PERSISTENT reverse request (4 consecutive) shifts on the 4th.
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_EQ(a.update(-0.5, 0.0).gear, an::Gear::DRIVE);
+  }
+  out = a.update(-0.5, 0.0);
+  EXPECT_EQ(out.gear, an::Gear::REVERSE);
+  EXPECT_DOUBLE_EQ(out.velocity_mps, -0.5);
+}
+
+TEST(GearArbiter, flip_debounce_counter_resets_on_same_direction)
+{
+  an::GearArbiter a(0.1, 0.05, 3);
+  a.update(1.0, 0.0);
+  a.update(-0.5, 0.0);
+  a.update(-0.5, 0.0);
+  a.update(1.0, 0.0);                     // back to forward -> counter resets
+  a.update(-0.5, 0.0);
+  const auto out = a.update(-0.5, 0.0);   // only 2 consecutive -> still DRIVE
+  EXPECT_EQ(out.gear, an::Gear::DRIVE);
+}
