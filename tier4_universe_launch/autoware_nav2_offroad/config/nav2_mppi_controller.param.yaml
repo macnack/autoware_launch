@@ -122,8 +122,11 @@ local_costmap:
       robot_base_frame: base_link
       use_sim_time: false
       rolling_window: true
-      width: 6
-      height: 6
+      # 6x6 was degenerate: with robot_radius 1.5 + inflation_radius 2.0 the whole
+      # +-3 m window was inflated cost (ObstaclesCritic gradient everywhere -> weave),
+      # and the 2.8 s rollout horizon (7 m at vx_max) left the map every cycle.
+      width: 24
+      height: 24
       resolution: 0.5
       robot_radius: 1.5
       track_unknown_space: false
