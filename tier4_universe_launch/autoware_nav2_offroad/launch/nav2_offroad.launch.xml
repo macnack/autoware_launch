@@ -30,7 +30,7 @@
                    The goal relay and cmd_vel->Control bridge below make this mode
                    drivable when `auto_control_cmd_topic` is set to
                    /nav2_offroad/mppi/control_cmd at the top level (see Task 4). -->
-  <arg name="local_layer" default="bridge" description="bridge | mppi"/>
+  <arg name="local_layer" default="bridge" description="bridge | mppi | mppi_recovery (mppi_recovery = EXPERIMENTAL: mppi + behavior_server + recovery BTs + loosened planner)"/>
   <!-- Global planner A/B (BACKLOG #11): smac_hybrid (default) | lattice. -->
   <arg name="global_planner" default="smac_hybrid" description="smac_hybrid | lattice"/>
   <arg name="mppi_param_file" default="$(find-pkg-share autoware_nav2_offroad)/config/nav2_mppi_controller.param.yaml"/>
@@ -41,9 +41,35 @@
 
   <!-- lifecycle node list depends on the local layer -->
   <let name="lifecycle_nodes" value="[planner_server, smoother_server]"
-       unless="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')"/>
+       unless="$(eval '&quot;$(var local_layer)&quot; in [&quot;mppi&quot;,&quot;mppi_recovery&quot;]')"/>
   <let name="lifecycle_nodes" value="[planner_server, smoother_server, controller_server, bt_navigator]"
        if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')"/>
+  <let name="lifecycle_nodes" value="[planner_server, smoother_server, controller_server, bt_navigator, behavior_server]"
+       if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+
+  <!-- mppi_recovery selects recovery BTs + a loosened Hybrid tolerance; mppi keeps the
+       recovery-free BTs and stock tolerance. (launch_xml forbids conditional <param>, so
+       select via <let>.) -->
+  <let name="bt_to_pose_xml"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_to_pose_no_recovery.xml"
+       unless="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="bt_to_pose_xml"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_to_pose_recovery_offroad.xml"
+       if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="bt_through_poses_xml"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_through_poses_no_recovery.xml"
+       unless="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="bt_through_poses_xml"
+       value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_through_poses_recovery_offroad.xml"
+       if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="planner_goal_tol" value="0.25"
+       unless="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="planner_goal_tol" value="0.5"
+       if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="planner_approach_iters" value="1000"
+       unless="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
+  <let name="planner_approach_iters" value="8000"
+       if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')"/>
 
   <node pkg="autoware_nav2_offroad" exec="free_map_publisher_node" name="free_map_publisher" output="screen"
         if="$(eval '&quot;$(var occupancy_grid_source)&quot;==&quot;free&quot;')">
@@ -75,6 +101,9 @@
     <param from="$(var nav2_param_file)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="global_costmap.global_costmap.use_sim_time" value="$(var use_sim_time)"/>
+    <!-- mppi_recovery loosens the goal tolerance so exact-pose parking isn't demanded. -->
+    <param name="GridBased.tolerance" value="$(var planner_goal_tol)"/>
+    <param name="GridBased.max_on_approach_iterations" value="$(var planner_approach_iters)"/>
   </node>
 
   <!-- global_planner:=lattice overlays SmacPlannerLattice over the Hybrid block above
@@ -85,6 +114,9 @@
     <param from="$(var lattice_param_file)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="global_costmap.global_costmap.use_sim_time" value="$(var use_sim_time)"/>
+    <!-- mppi_recovery loosens the goal tolerance so exact-pose parking isn't demanded. -->
+    <param name="GridBased.tolerance" value="$(var planner_goal_tol)"/>
+    <param name="GridBased.max_on_approach_iterations" value="$(var planner_approach_iters)"/>
   </node>
 
   <node pkg="nav2_smoother" exec="smoother_server" name="smoother_server" output="screen">
@@ -106,29 +138,34 @@
 
   <!-- MPPI local layer (local_layer:=mppi). BACKLOG #11. -->
   <node pkg="nav2_controller" exec="controller_server" name="controller_server" output="screen"
-        if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')">
+        if="$(eval '&quot;$(var local_layer)&quot; in [&quot;mppi&quot;,&quot;mppi_recovery&quot;]')">
     <param from="$(var mppi_param_file)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="local_costmap.local_costmap.use_sim_time" value="$(var use_sim_time)"/>
   </node>
 
   <node pkg="nav2_bt_navigator" exec="bt_navigator" name="bt_navigator" output="screen"
-        if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')">
+        if="$(eval '&quot;$(var local_layer)&quot; in [&quot;mppi&quot;,&quot;mppi_recovery&quot;]')">
     <param from="$(var bt_nav_param_file)"/>
-    <!-- Recovery-free BTs: the off-road launch runs no behavior_server, so the stock
-         recovery BTs (spin/backup/wait) fail to load and bt_navigator never activates.
-         bt_navigator (Humble) instantiates BOTH navigators regardless of the `navigators`
-         list, so the through_poses default BT must be recovery-free too. -->
-    <param name="default_nav_to_pose_bt_xml"
-           value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_to_pose_no_recovery.xml"/>
-    <param name="default_nav_through_poses_bt_xml"
-           value="$(find-pkg-share autoware_nav2_offroad)/config/behavior_trees/navigate_through_poses_no_recovery.xml"/>
+    <!-- BT selection is mode-dependent (see the bt_*_xml lets above): mppi uses the
+         recovery-free BTs (no behavior_server); mppi_recovery uses the recovery BTs that
+         call behavior_server. bt_navigator (Humble) instantiates BOTH navigators regardless
+         of the `navigators` list, so both defaults are set. -->
+    <param name="default_nav_to_pose_bt_xml" value="$(var bt_to_pose_xml)"/>
+    <param name="default_nav_through_poses_bt_xml" value="$(var bt_through_poses_xml)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <!-- mppi_recovery only: recovery action servers (wait, drive_on_heading) for the recovery BTs. -->
+  <node pkg="nav2_behaviors" exec="behavior_server" name="behavior_server" output="screen"
+        if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi_recovery&quot;')">
+    <param from="$(find-pkg-share autoware_nav2_offroad)/config/nav2_behavior_server.param.yaml"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
   </node>
 
   <!-- mppi mode: goal topic -> NavigateToPose action (latest goal wins; cancel reuses offroad_cancel) -->
   <node pkg="autoware_nav2_offroad" exec="offroad_goal_relay_node" name="offroad_goal_relay" output="screen"
-        if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')">
+        if="$(eval '&quot;$(var local_layer)&quot; in [&quot;mppi&quot;,&quot;mppi_recovery&quot;]')">
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <remap from="~/input/goal" to="/planning/offroad_goal"/>
     <remap from="~/input/cancel" to="/planning/offroad_cancel"/>
@@ -137,7 +174,7 @@
   <!-- mppi mode: /cmd_vel -> Control on the gate AUTO input (see auto_control_cmd_topic in control launch).
        NOTE: pair local_layer:=mppi with auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd at the top level. -->
   <node pkg="autoware_nav2_offroad" exec="cmd_vel_to_control_bridge_node" name="cmd_vel_to_control_bridge" output="screen"
-        if="$(eval '&quot;$(var local_layer)&quot;==&quot;mppi&quot;')">
+        if="$(eval '&quot;$(var local_layer)&quot; in [&quot;mppi&quot;,&quot;mppi_recovery&quot;]')">
     <param from="$(var cmd_vel_bridge_param_file)"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="wheelbase_m" value="$(var vehicle_wheelbase_m)"/>
