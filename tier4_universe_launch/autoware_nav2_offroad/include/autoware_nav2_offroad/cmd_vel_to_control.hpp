@@ -30,5 +30,16 @@ struct ControlOut
 };
 ControlOut twistToControl(
   double v_mps, double omega_radps, const BicycleParams & p, double last_steer_rad);
+
+/// Longitudinal acceleration command for velocity-tracking on acceleration-driven
+/// vehicle interfaces (e.g. simple_planning_simulator ACC_GEARED, most real
+/// interfaces): a Control message whose acceleration stays 0 never moves the
+/// vehicle, whatever its velocity field says. P-law on the signed velocity error,
+/// clamped to +-accel_limit. In REVERSE gear the interface interprets positive
+/// acceleration as "speed up in the gear direction" (backwards), so the
+/// signed-frame error is flipped into the gear frame.
+double computeAccelCommand(
+  double v_target_mps, double v_measured_mps, bool reverse_gear, double gain,
+  double accel_limit_mps2);
 }  // namespace autoware::nav2_offroad
 #endif  // AUTOWARE_NAV2_OFFROAD__CMD_VEL_TO_CONTROL_HPP_

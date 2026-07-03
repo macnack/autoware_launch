@@ -43,16 +43,23 @@ public:
       RCLCPP_INFO(get_logger(), "bridge starts ENABLED (initial_enabled=true)");
     }
 
+    // Acceleration-driven vehicle interfaces (simple_planning_simulator ACC_GEARED,
+    // most real interfaces) integrate Control.longitudinal.acceleration and ignore
+    // the velocity setpoint — publishing velocity-only commands never moves the
+    // vehicle. Track the commanded velocity with a P-law on measured speed.
+    accel_gain_ = declare_parameter<double>("accel_gain", 1.5);
+    accel_limit_mps2_ = declare_parameter<double>("accel_limit_mps2", 3.0);
+    sub_odom_ = create_subscription<nav_msgs::msg::Odometry>(
+      "~/input/kinematic_state", rclcpp::QoS(1),
+      [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) {
+        vehicle_speed_mps_ = msg->twist.twist.linear.x;
+      });
+
     enable_reverse_ = declare_parameter<bool>("enable_reverse", false);
     if (enable_reverse_) {
       const double stop_thr = declare_parameter<double>("gear_stop_threshold_mps", 0.1);
       const double deadband = declare_parameter<double>("gear_deadband_mps", 0.05);
       arbiter_ = std::make_unique<GearArbiter>(stop_thr, deadband);
-      sub_odom_ = create_subscription<nav_msgs::msg::Odometry>(
-        "~/input/kinematic_state", rclcpp::QoS(1),
-        [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) {
-          vehicle_speed_mps_ = msg->twist.twist.linear.x;
-        });
       RCLCPP_INFO(get_logger(), "reverse ENABLED (stop-and-shift gear sequencing)");
     }
 
@@ -96,11 +103,14 @@ private:
         ? autoware_vehicle_msgs::msg::GearCommand::REVERSE
         : autoware_vehicle_msgs::msg::GearCommand::DRIVE;
     }
+    last_gear_reverse_ = gear_cmd == autoware_vehicle_msgs::msg::GearCommand::REVERSE;
     const auto c = twistToControl(cmd_v, msg->angular.z, params_, last_steer_);
     last_steer_ = c.steering_tire_angle_rad;
     autoware_control_msgs::msg::Control ctrl;
     ctrl.stamp = now();
     ctrl.longitudinal.velocity = static_cast<float>(c.velocity_mps);
+    ctrl.longitudinal.acceleration = static_cast<float>(computeAccelCommand(
+      c.velocity_mps, vehicle_speed_mps_, last_gear_reverse_, accel_gain_, accel_limit_mps2_));
     ctrl.lateral.steering_tire_angle = static_cast<float>(c.steering_tire_angle_rad);
     pub_ctrl_->publish(ctrl);
     autoware_vehicle_msgs::msg::GearCommand gear;
@@ -119,6 +129,10 @@ private:
       autoware_control_msgs::msg::Control ctrl;
       ctrl.stamp = now();
       ctrl.longitudinal.velocity = 0.0f;
+      // Actively brake to zero — acceleration-driven interfaces ignore the
+      // velocity field, so a 0-velocity/0-acceleration command coasts forever.
+      ctrl.longitudinal.acceleration = static_cast<float>(computeAccelCommand(
+        0.0, vehicle_speed_mps_, last_gear_reverse_, accel_gain_, accel_limit_mps2_));
       ctrl.lateral.steering_tire_angle = static_cast<float>(last_steer_);
       pub_ctrl_->publish(ctrl);
     }
@@ -129,7 +143,10 @@ private:
   double last_steer_{0.0};
   double cmd_vel_timeout_s_{0.5};
   bool enable_reverse_{false};
+  bool last_gear_reverse_{false};
   double vehicle_speed_mps_{0.0};
+  double accel_gain_{1.5};
+  double accel_limit_mps2_{3.0};
   std::unique_ptr<GearArbiter> arbiter_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_;
   rclcpp::Time last_cmd_vel_time_{0, 0, RCL_ROS_TIME};

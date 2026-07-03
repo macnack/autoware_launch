@@ -65,4 +65,34 @@ TEST(TwistToControl, ReverseVelocityProducesSignConsistentSteer)
   EXPECT_DOUBLE_EQ(c2.steering_tire_angle_rad, 0.25);
   EXPECT_DOUBLE_EQ(c2.velocity_mps, -0.05);
 }
+
+using autoware::nav2_offroad::computeAccelCommand;
+
+TEST(ComputeAccelCommand, ForwardTracksVelocityError)
+{
+  // target 2.0, measured 1.0, gain 1.5 -> +1.5 (accelerate)
+  EXPECT_DOUBLE_EQ(computeAccelCommand(2.0, 1.0, false, 1.5, 3.0), 1.5);
+  // target 0.0, measured 2.0 -> -3.0 (brake, clamped to the limit)
+  EXPECT_DOUBLE_EQ(computeAccelCommand(0.0, 2.0, false, 1.5, 3.0), -3.0);
+}
+
+TEST(ComputeAccelCommand, ClampsToLimit)
+{
+  EXPECT_DOUBLE_EQ(computeAccelCommand(10.0, 0.0, false, 1.5, 3.0), 3.0);
+  EXPECT_DOUBLE_EQ(computeAccelCommand(-10.0, 0.0, true, 1.5, 3.0), 3.0);
+}
+
+TEST(ComputeAccelCommand, ReverseGearUsesGearFrame)
+{
+  // ACC_GEARED interfaces: in REVERSE gear, positive acceleration speeds the
+  // vehicle up IN THE GEAR DIRECTION (backwards). The signed-frame velocity
+  // error must be flipped in reverse — a naive signed-frame tracker produced
+  // a runaway (brake command accelerated the vehicle backwards).
+  // Backing slower than target (-0.5 vs -1.5): speed up backwards -> +accel.
+  EXPECT_DOUBLE_EQ(computeAccelCommand(-1.5, -0.5, true, 1.5, 3.0), 1.5);
+  // Backing FASTER than target (-3.0 vs -1.5): brake -> negative accel.
+  EXPECT_DOUBLE_EQ(computeAccelCommand(-1.5, -3.0, true, 1.5, 3.0), -2.25);
+  // Commanded stop while rolling backwards: brake.
+  EXPECT_LT(computeAccelCommand(0.0, -2.0, true, 1.5, 3.0), 0.0);
+}
 }  // namespace

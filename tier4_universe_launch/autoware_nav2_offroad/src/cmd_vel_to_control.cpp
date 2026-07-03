@@ -29,9 +29,24 @@ ControlOut twistToControl(
     return out;
   }
   // Negative v (reverse) naturally inverts the steer sign; Nav2 supplies a sign-consistent omega.
+  // Empirically verified against simple_planning_simulator (2026-07-03): DRIVE steer+ -> LEFT,
+  // REVERSE steer+ -> RIGHT — both match this signed bicycle model.
   double delta = std::atan(p.wheelbase_m * omega_radps / v_mps);
   delta = std::clamp(delta, -p.max_steer_rad, p.max_steer_rad);
   out.steering_tire_angle_rad = delta;
   return out;
+}
+
+double computeAccelCommand(
+  double v_target_mps, double v_measured_mps, bool reverse_gear, double gain,
+  double accel_limit_mps2)
+{
+  double err = v_target_mps - v_measured_mps;
+  if (reverse_gear) {
+    // Gear frame: on ACC_GEARED interfaces positive acceleration speeds the vehicle
+    // up in the gear direction (backwards in REVERSE), so flip the signed error.
+    err = -err;
+  }
+  return std::clamp(gain * err, -accel_limit_mps2, accel_limit_mps2);
 }
 }  // namespace autoware::nav2_offroad
