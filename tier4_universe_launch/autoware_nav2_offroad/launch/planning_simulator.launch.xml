@@ -20,6 +20,7 @@
   <!-- This wrapper is the off-road entry point: default to nav2_offroad so the
        gated Nav2 stack + scenario_selector OFFROAD are enabled by the inner launch. -->
   <arg name="navigation_mode" default="nav2_offroad" description="autoware | nav2_offroad"/>
+  <arg name="auto_control_cmd_topic" default="/control/trajectory_follower/control_cmd"/>
 
   <!-- Module presets -->
   <arg name="planning_module_preset" default="default"/>
@@ -63,6 +64,7 @@
     <arg name="planning_module_preset" value="$(var planning_module_preset)"/>
     <arg name="control_module_preset" value="$(var control_module_preset)"/>
     <arg name="navigation_mode" value="$(var navigation_mode)"/>
+    <arg name="auto_control_cmd_topic" value="$(var auto_control_cmd_topic)"/>
     <arg name="lanelet2_map_file" value="$(var lanelet2_map_file)"/>
     <arg name="pointcloud_map_file" value="$(var pointcloud_map_file)"/>
     <arg name="launch_dummy_doors" value="$(var launch_dummy_doors)"/>

@@ -1,0 +1,8 @@
+# Planner motion-model overlay, forward-only (default). Layered over
+# nav2_offroad.param.yaml on planner_server; restates the forward value so the
+# reverse/forward selection is a <let>-chosen FILE (type-safe), never a string
+# <param value> override (silently fails on typed params).
+planner_server:
+  ros__parameters:
+    GridBased:
+      motion_model_for_search: "DUBIN"

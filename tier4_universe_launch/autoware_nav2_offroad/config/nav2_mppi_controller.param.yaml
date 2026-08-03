@@ -26,8 +26,8 @@ controller_server:
       movement_time_allowance: 10.0
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.5
-      yaw_goal_tolerance: 0.25
+      xy_goal_tolerance: 1.5      # forward-only: position goal; a small overshoot still counts
+      yaw_goal_tolerance: 0.1745  # +-10 deg; with reverse (allow_reverse) the vehicle can align a pose
       stateful: true
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
@@ -37,8 +37,8 @@ controller_server:
       vx_std: 0.2
       vy_std: 0.0
       wz_std: 0.4
-      vx_max: 2.0          # matches bridge cruise_speed_mps
-      vx_min: -0.35        # reverse by default (research)
+      vx_max: 2.5          # max forward speed [m/s]; >~3 makes forward-only arcs too wide to hit goals
+      vx_min: 0.0          # v1 forward-only: reverse needs gear sequencing in the bridge (follow-up)
       vy_max: 0.0          # Ackermann: no lateral velocity
       wz_max: 1.0
       ax_max: 3.0
@@ -61,8 +61,11 @@ controller_server:
       GoalCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 5.0
-        threshold_to_consider: 1.4
+        cost_weight: 8.0
+        # attract to the exact goal point from farther out: with 1.4 nothing pulled
+        # toward the goal until inside 1.4 m — the vehicle tracked the (staler) path,
+        # passed ~3.5 m abeam of the goal and looped to retry.
+        threshold_to_consider: 4.0
       GoalAngleCritic:
         enabled: true
         cost_power: 1
@@ -110,31 +113,5 @@ controller_server:
         max_angle_to_furthest: 1.0
         mode: 0
 
-# Rolling local costmap MPPI evaluates its critics against. Mirrors the global
-# costmap's occupancy source (static + inflation). A real sensor-based obstacle /
-# voxel / traversability layer is BACKLOG #4.
-local_costmap:
-  local_costmap:
-    ros__parameters:
-      update_frequency: 5.0
-      publish_frequency: 2.0
-      global_frame: map
-      robot_base_frame: base_link
-      use_sim_time: false
-      rolling_window: true
-      width: 6
-      height: 6
-      resolution: 0.5
-      robot_radius: 1.5
-      track_unknown_space: false
-      plugins: ["static_layer", "inflation_layer"]
-      static_layer:
-        plugin: "nav2_costmap_2d::StaticLayer"
-        map_topic: /nav2_offroad/costmap/occupancy_grid
-        map_subscribe_transient_local: true
-        subscribe_to_updates: false
-      inflation_layer:
-        plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 2.0
-      always_send_full_costmap: true
+# local_costmap is loaded separately — see nav2_offroad_local_costmap.param.yaml,
+# shared with the RPP controller config so the two can't drift out of sync.

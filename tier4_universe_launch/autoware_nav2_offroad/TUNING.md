@@ -179,10 +179,18 @@ and the costmap/trajectory topics to a rosbag for review.
 
 `config/nav2_mppi_controller.param.yaml`. Start points (untuned):
 
-- speed/reverse: `FollowPath.vx_max` (2.0, = bridge cruise), `vx_min` (−0.35, reverse).
+- speed/reverse: `FollowPath.vx_max` (2.0, = bridge cruise); `vx_min` is `0.0` (forward-only
+  v1 — see note below; do **not** set it negative without also adding gear-sequencing to
+  the cmd_vel bridge).
 - feasibility: `AckermannConstraints.min_turning_r` (3.5, = planner radius).
 - path tracking vs avoidance: raise `PathAlignCritic.cost_weight` to hug the global path;
   raise `ObstaclesCritic.repulsion_weight` / `critical_weight` to push off obstacles.
 - if MPPI stalls in a local minimum, raise `ObstaclesCritic.repulsion_weight` and/or
   `PreferForwardCritic.cost_weight`. GPU strongly recommended (lower `batch_size` /
   `controller_frequency` on CPU).
+
+**Forward-only (v1):** `FollowPath.vx_min` is `0.0` — MPPI will not command reverse. To
+re-enable reverse, set `vx_min` back to a negative value (e.g. `-0.35`) here in
+`nav2_mppi_controller.param.yaml` **and** implement the bridge's gear-by-sign +
+stop-before-gear-change sequencing (BACKLOG #11 "Remaining: Reverse driving"); the bridge
+currently assumes forward motion and does not switch gear.

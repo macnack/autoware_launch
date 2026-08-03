@@ -11,6 +11,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>autoware_adapi_v1_msgs</depend>
+  <depend>autoware_control_msgs</depend>
   <depend>autoware_nav2_offroad_msgs</depend>
   <depend>autoware_planning_msgs</depend>
   <depend>autoware_vehicle_msgs</depend>

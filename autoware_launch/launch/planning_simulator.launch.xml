@@ -10,6 +10,7 @@
   <arg name="planning_module_preset" default="default" description="planning module preset"/>
   <arg name="control_module_preset" default="default" description="control module preset"/>
   <arg name="navigation_mode" default="autoware" description="navigation mode. options: autoware, nav2_offroad"/>
+  <arg name="auto_control_cmd_topic" default="/control/trajectory_follower/control_cmd"/>
 
   <!-- Optional parameters -->
   <!-- Map -->
@@ -73,6 +74,7 @@
       <arg name="planning_module_preset" value="$(var planning_module_preset)"/>
       <arg name="control_module_preset" value="$(var control_module_preset)"/>
       <arg name="navigation_mode" value="$(var navigation_mode)"/>
+      <arg name="auto_control_cmd_topic" value="$(var auto_control_cmd_topic)"/>
       <!-- Modules to be launched -->
       <arg name="launch_sensing" value="false"/>
       <arg name="launch_localization" value="false"/>

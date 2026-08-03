@@ -1,0 +1,24 @@
+<!--
+  Reverse-capable NavigateThroughPoses recovery BT (allow_reverse:=true).
+  See navigate_to_pose_recovery_reverse_offroad.xml; ComputePathThroughPoses(goals).
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+      <PipelineSequence name="NavigateWithReplanning">
+        <RateController hz="0.3">
+          <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="GridBased"/>
+        </RateController>
+        <FollowPath path="{path}" controller_id="FollowPath"/>
+      </PipelineSequence>
+      <Sequence name="RecoveryActions">
+        <ClearEntireCostmap name="ClearGlobalCostmap-Context"
+                            service_name="global_costmap/clear_entirely_global_costmap"/>
+        <ClearEntireCostmap name="ClearLocalCostmap-Context"
+                            service_name="local_costmap/clear_entirely_local_costmap"/>
+        <BackUp backup_dist="1.0" backup_speed="0.3"/>
+        <Wait wait_duration="2.0"/>
+      </Sequence>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

@@ -172,14 +172,140 @@ Config files in `config/`:
 
 | Arg | Values | Default | Effect |
 |-----|--------|---------|--------|
-| `local_layer` | `bridge` \| `mppi` | `bridge` | `bridge`: path→Autoware Trajectory→`trajectory_follower` (current). `mppi`: Nav2 `controller_server` (`nav2_mppi_controller`, Ackermann) + `bt_navigator` + `local_costmap` drive the path and emit `/cmd_vel`. |
+| `local_layer` | `bridge` \| `mppi` \| `mppi_recovery` | `bridge` | `bridge`: path→Autoware Trajectory→`trajectory_follower` (current). `mppi`: Nav2 `controller_server` (`nav2_mppi_controller`, Ackermann) + `bt_navigator` + `local_costmap` drive the path and emit `/cmd_vel`, routed to `vehicle_cmd_gate` (see below). `mppi_recovery` (**EXPERIMENTAL**): `mppi` plus the standard Nav2 recovery layer — `behavior_server` (`wait`, `drive_on_heading`; no spin/backup, forward-only) + recovery behavior trees (RecoveryNode: retry + clear-costmap + wait) + a loosened `SmacPlannerHybrid` goal tolerance (0.5 m). Recovers from transient planner failures instead of aborting the goal. Pair with `auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd` exactly like `mppi`. |
 | `global_planner` | `smac_hybrid` \| `lattice` | `smac_hybrid` | `lattice` overlays `SmacPlannerLattice` (optional A/B test). |
+| `allow_reverse` | `true` \| `false` | `false` | `mppi_recovery` only (**EXPERIMENTAL**): reverse driving — REEDS_SHEPP planning, MPPI `vx_min: -1.5`, stop-and-shift gear sequencing in the bridge (holds a stop until \|speed\| < 0.1 m/s before any DRIVE↔REVERSE change), `backup` recovery. Ignored in other modes. |
+| `local_controller` | `mppi` \| `rpp` | `mppi` | FollowPath controller for `local_layer` `mppi`/`mppi_recovery`. `rpp`: RegulatedPurePursuit **pure tracking** — the classical split pipeline (Smac plans, RPP tracks exactly, cost-regulated slowdown is the local safety layer). Deterministic, few knobs; recommended pairing `local_layer:=mppi_recovery local_controller:=rpp`. Reverse via `allow_reverse:=true` (`allow_reversing`). |
 
-> **`mppi` mode is bring-up only and not yet drivable end-to-end:** MPPI produces
-> `/cmd_vel`, but routing it through `cmd_vel_to_control_bridge` → `vehicle_cmd_gate`
-> is a separate open seam. Until that lands, use the default `local_layer:=bridge`.
+### `mppi` mode: routing complete; end-to-end sim-drive pending
 
-Key bridge parameters:
+`local_layer:=mppi` closes both seams left open by the BACKLOG #11 bring-up:
+`offroad_goal_relay_node` converts `/planning/offroad_goal` into the
+`NavigateToPose` action `bt_navigator` expects, and the ported
+`cmd_vel_to_control_bridge` (bicycle model + stale-`cmd_vel` watchdog) converts
+MPPI's `/cmd_vel` into a `Control` message on the `vehicle_cmd_gate` AUTO input.
+**v1 is forward-only** (`vx_min: 0.0` in `nav2_mppi_controller.param.yaml`) —
+reverse driving (gear sequencing) is a follow-up (BACKLOG #11).
+
+Run with the recommended pairing:
+
+```bash
+ros2 launch autoware_nav2_offroad planning_simulator.launch.xml \
+  map_path:=$HOME/autoware_map/sample-map-planning \
+  vehicle_model:=sample_vehicle \
+  sensor_model:=sample_sensor_kit \
+  navigation_mode:=nav2_offroad \
+  local_layer:=mppi \
+  auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd \
+  occupancy_grid_source:=perception
+```
+
+`auto_control_cmd_topic` **must** be set to `/nav2_offroad/mppi/control_cmd`
+whenever `local_layer:=mppi` — this is what routes the bridge's `Control`
+output onto `vehicle_cmd_gate`'s AUTO input (it mirrors the existing
+`auto_gear_cmd_topic` pattern). Leaving it at its default
+(`/control/trajectory_follower/control_cmd`) means the gate keeps consuming
+the on-road trajectory_follower's output, so MPPI's commands never reach the
+vehicle. `occupancy_grid_source:=perception` is the recommended costmap
+pairing so the rolling local costmap consumes the live Autoware perception
+occupancy grid (a dual-layer SLAM-global + perception-local costmap remains a
+follow-up, BACKLOG #4).
+
+#### Safety model in `mppi` mode
+
+In `mppi` mode, MPPI drives directly off the Nav2 path/costmap and never
+produces an Autoware `Trajectory`, so **neither trajectory-level validator
+is in the loop**: not the on-road `planning_validator`, and not this
+package's own off-road `trajectory_validator` (BACKLOG #3), since there is
+no `Trajectory` for either to validate. Safety instead comes from a
+three-link chain:
+
+1. **Avoidance** — MPPI's `ObstaclesCritic`, reacting to the live local
+   costmap.
+2. **Liveness** — the bridge's stale-`cmd_vel` watchdog: if MPPI stops
+   publishing `/cmd_vel`, the bridge emits a hold-stop `Control` instead of
+   coasting on the last command.
+3. **Final guard** — `vehicle_cmd_gate`'s own limit filter (note: the
+   off-road gate params are relaxed for simulation; re-tighten before
+   hardware).
+
+**Abort path:** publish `Bool(true)` on `/planning/offroad_cancel` (the
+`offroad_goal_relay_node` cancels the in-flight `NavigateToPose` goal, MPPI
+stops producing `/cmd_vel`, and the watchdog hold-stops). The RViz
+**"Activate ON-ROAD"** button and Return-To-Home's `cancel_return` service
+both work unchanged — they publish to the same cancel topic / switch mode
+the same way as in `bridge` mode.
+
+#### Open sim-check caveat
+
+Verify in simulation that `AUTONOMOUS` engage succeeds **without**
+`/planning/trajectory` being published — `operation_mode_transition_manager`'s
+engage checks reference the trajectory, and `allow_autonomous_in_stopped:
+true` should permit a standstill engage in `mppi` mode, but this has not yet
+been confirmed end-to-end. If engage is rejected, this mode's engage path
+will need to be gated explicitly.
+
+**Acceptance test:** `scripts/offroad_demo_tour.py` run under
+`local_layer:=mppi` — the tour must drive all legs, exercising
+goal → relay → BT → MPPI → bridge → gate.
+
+**Sim bringup status (2026-07-02):** a partial planning-simulator bringup in
+`local_layer:=mppi` confirmed all feature nodes launch and behave correctly —
+`controller_server` (MPPI), `bt_navigator`, `offroad_goal_relay`, and
+`cmd_vel_to_control_bridge` (which logs `bridge starts ENABLED`); with MPPI not
+yet publishing `/cmd_vel`, the bridge's stale-`cmd_vel` watchdog correctly holds
+a stop. The gate routing is verified at config level (the gate's
+`input/auto/control_cmd` remaps to `$(var auto_control_cmd_topic)` =
+`/nav2_offroad/mppi/control_cmd`, where the bridge is confirmed publishing). The
+**live gate-subscriber check and the full drive remain unverified** — blocked in
+that environment by *unrelated* workspace version skew (a `vehicle_cmd_gate`
+container-mate failing param-init, and a `nav2_lifecycle_manager`/
+`libdiagnostic_updater.so` apt mismatch), not by this feature. A clean workspace
+is needed to close the acceptance test.
+
+### Experimental: `local_layer:=mppi_recovery`
+
+Same drive chain as `mppi` (goal → relay → `bt_navigator` → planner → MPPI →
+bridge → gate) but with the standard Nav2 robustness layer so a single planner
+failure recovers instead of aborting: a lifecycle-managed `behavior_server`
+(forward-only `wait` + `drive_on_heading`), recovery behavior trees that retry
+`ComputePathToPose` with `ClearEntireCostmap` + `Wait` between attempts, and a
+loosened `SmacPlannerHybrid` goal tolerance (0.5 m, more approach iterations).
+Forward-only; no reverse, no spin/backup. Marked experimental until the sim
+acceptance (behavior_server activates; a ~22 m straight goal that aborts in
+`mppi` mode reaches in `mppi_recovery`) is validated on a clean workspace.
+
+```bash
+ros2 launch autoware_nav2_offroad planning_simulator.launch.xml \
+  map_path:=$HOME/autoware_map/sample-map-planning \
+  vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit \
+  navigation_mode:=nav2_offroad local_layer:=mppi_recovery \
+  auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd \
+  occupancy_grid_source:=perception
+```
+
+#### Reverse (`allow_reverse:=true`)
+
+Forward-only DUBIN cannot turn around, so goals behind the vehicle are
+unreachable. `allow_reverse:=true` enables reverse end-to-end: the planner
+switches to REEDS_SHEPP (forward+reverse arcs), MPPI samples reverse
+(`vx_min: -1.5`), the cmd_vel bridge runs a stop-and-shift gear state machine
+(zero-velocity hold of the current gear until |speed| < 0.1 m/s, then shift —
+hardware never sees a direction slam), and the recovery BT gains a `BackUp`
+step. Default `false` keeps `mppi_recovery` forward-only and unchanged.
+
+#### Tracking controller (`local_controller:=rpp`)
+
+MPPI is a sampling optimizer responsible for path following, avoidance, speed and
+direction at once — powerful but tuning-heavy (weave/goal-miss/reverse-lock issues
+under low-speed off-road conditions). `local_controller:=rpp` swaps in
+RegulatedPurePursuit as a **pure tracking controller**: the Smac path (already
+kinematically feasible) is tracked geometrically; speed is regulated by curvature,
+obstacle proximity (cost-regulated scaling) and goal approach. Same
+`controller_server`, `/cmd_vel`, bridge (acceleration + gear sequencing), recovery
+BTs and gate routing. MPPI remains the default/experimental alternative.
+
+Key bridge parameters (`bridge` mode, `nav2_path_to_trajectory_bridge.param.yaml`):
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|

@@ -7,6 +7,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(autoware_adapi_v1_msgs REQUIRED)
+find_package(autoware_control_msgs REQUIRED)
 find_package(autoware_nav2_offroad_msgs REQUIRED)
 find_package(autoware_planning_msgs REQUIRED)
 find_package(diagnostic_updater REQUIRED)
@@ -191,14 +192,55 @@ ament_target_dependencies(return_home_node
   visualization_msgs
 )
 
+add_library(autoware_nav2_offroad_cmd_vel_to_control
+  src/cmd_vel_to_control.cpp
+  src/gear_arbiter.cpp
+)
+target_include_directories(autoware_nav2_offroad_cmd_vel_to_control PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+add_executable(cmd_vel_to_control_bridge_node
+  src/cmd_vel_to_control_bridge_node.cpp
+)
+target_link_libraries(cmd_vel_to_control_bridge_node
+  autoware_nav2_offroad_cmd_vel_to_control
+)
+target_include_directories(cmd_vel_to_control_bridge_node PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+ament_target_dependencies(cmd_vel_to_control_bridge_node
+  autoware_control_msgs
+  autoware_vehicle_msgs
+  geometry_msgs
+  nav_msgs
+  rclcpp
+  std_srvs
+)
+
+add_executable(offroad_goal_relay_node
+  src/offroad_goal_relay_node.cpp
+)
+ament_target_dependencies(offroad_goal_relay_node
+  geometry_msgs
+  nav2_msgs
+  rclcpp
+  rclcpp_action
+  std_msgs
+)
+
 install(TARGETS
+  autoware_nav2_offroad_cmd_vel_to_control
   autoware_nav2_offroad_mode_manager_core
   autoware_nav2_offroad_return_home_core
   autoware_nav2_offroad_occupancy_grid_relay
   autoware_nav2_offroad_trajectory_builder
   autoware_nav2_offroad_trajectory_validator_core
+  cmd_vel_to_control_bridge_node
   free_map_publisher_node
   nav2_path_to_trajectory_bridge_node
+  offroad_goal_relay_node
   perception_occupancy_relay_node
   return_home_node
   trajectory_mode_manager_node
@@ -300,6 +342,30 @@ if(BUILD_TESTING)
       autoware_planning_msgs
       rclcpp
       std_srvs
+    )
+  endif()
+
+  ament_add_gtest(test_cmd_vel_to_control
+    test/test_cmd_vel_to_control.cpp
+  )
+  if(TARGET test_cmd_vel_to_control)
+    target_link_libraries(test_cmd_vel_to_control
+      autoware_nav2_offroad_cmd_vel_to_control
+    )
+    target_include_directories(test_cmd_vel_to_control PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+  endif()
+
+  ament_add_gtest(test_gear_arbiter
+    test/test_gear_arbiter.cpp
+  )
+  if(TARGET test_gear_arbiter)
+    target_link_libraries(test_gear_arbiter
+      autoware_nav2_offroad_cmd_vel_to_control
+    )
+    target_include_directories(test_gear_arbiter PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
   endif()
 endif()

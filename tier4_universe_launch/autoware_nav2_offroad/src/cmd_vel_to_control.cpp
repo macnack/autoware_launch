@@ -1,0 +1,60 @@
+// Copyright 2026 Maciej Krupka maciej.krupka@put.poznan.pl
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "autoware_nav2_offroad/cmd_vel_to_control.hpp"
+
+#include <algorithm>
+#include <cmath>
+
+namespace autoware::nav2_offroad
+{
+ControlOut twistToControl(double v_mps, double omega_radps, const BicycleParams & p)
+{
+  ControlOut out;
+  out.velocity_mps = v_mps;
+  if (std::abs(v_mps) < p.min_speed_for_steer_mps) {
+    out.steering_tire_angle_rad = 0.0;  // undefined geometry near v=0; not moving anyway
+    return out;
+  }
+  // Negative v (reverse) naturally inverts the steer sign; Nav2 supplies a sign-consistent omega.
+  // Empirically verified against simple_planning_simulator (2026-07-03): DRIVE steer+ -> LEFT,
+  // REVERSE steer+ -> RIGHT — both match this signed bicycle model.
+  double delta = std::atan(p.wheelbase_m * omega_radps / v_mps);
+  delta = std::clamp(delta, -p.max_steer_rad, p.max_steer_rad);
+  out.steering_tire_angle_rad = delta;
+  return out;
+}
+
+double computeAccelCommand(
+  double v_target_mps, double v_measured_mps, bool reverse_gear, double gain,
+  double accel_limit_mps2)
+{
+  double err = v_target_mps - v_measured_mps;
+  if (reverse_gear) {
+    // Gear frame: on ACC_GEARED interfaces positive acceleration speeds the vehicle
+    // up in the gear direction (backwards in REVERSE), so flip the signed error.
+    err = -err;
+  }
+  return std::clamp(gain * err, -accel_limit_mps2, accel_limit_mps2);
+}
+
+double resolveFinalSteer(
+  double raw_steer_rad, bool near_zero_speed, bool has_started, double last_steer_rad)
+{
+  if (near_zero_speed && has_started) {
+    return last_steer_rad;
+  }
+  return raw_steer_rad;
+}
+}  // namespace autoware::nav2_offroad

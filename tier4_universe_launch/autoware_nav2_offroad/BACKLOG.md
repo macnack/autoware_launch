@@ -171,9 +171,11 @@ adding **`nav2_mppi_controller`** underneath it. MPPI (Model Predictive Path Int
 is what DARPA RACER / NASA JPL / Georgia Tech AutoRally use for rough-terrain
 kinodynamic driving — it samples control sequences forward through a dynamics model
 (feasible by construction), handles traction/slope/contact dynamics and reactive
-avoidance the geometric global planner ignores, reverses by default (`vx_min` −0.35),
-and is cost-shapeable so the traversability costmap (item 4) flows straight into
-control. State lattice (`SmacPlannerLattice`) is at most an optional A/B test.
+avoidance the geometric global planner ignores, and can reverse (`vx_min` −0.35 in general
+MPPI usage — **not** the shipped v1 default, see the 2026-07-02 update below: shipped v1 is
+forward-only, `vx_min: 0.0`), and is cost-shapeable so the traversability costmap (item 4)
+flows straight into control. State lattice (`SmacPlannerLattice`) is at most an optional
+A/B test.
 
 Tasks:
 
@@ -193,7 +195,8 @@ planner; `SmacPlannerLattice` is at most an optional A/B test.
 **Implemented (config + launch, branch `feat/offroad-mppi-local-layer`):**
 
 - `local_layer:=mppi` brings up `controller_server` (`nav2_mppi_controller`, Ackermann,
-  `vx_min:-0.35` reverse, critics incl. **ObstaclesCritic**) + a rolling `local_costmap` +
+  ~~`vx_min:-0.35` reverse~~ **superseded — shipped v1 is forward-only, `vx_min: 0.0`, see the
+  2026-07-02 update below**, critics incl. **ObstaclesCritic**) + a rolling `local_costmap` +
   `bt_navigator` (NavigateToPose orchestration), all under the existing lifecycle manager;
   the path→trajectory bridge is suppressed in this mode. Default stays `local_layer:=bridge`.
 - `global_planner:=lattice` overlays `SmacPlannerLattice` as the optional A/B planner
@@ -203,10 +206,60 @@ planner; `SmacPlannerLattice` is at most an optional A/B test.
 
 **Remaining (NOT in this branch):**
 
-- **cmd_vel → gate routing** (shared with the teach&repeat cmd_vel→gate work): MPPI emits
-  `/cmd_vel`, but it is not yet routed to `vehicle_cmd_gate`, so `mppi` mode is **not yet
-  drivable** end-to-end.
-- a goal relay turning `/planning/offroad_goal` into a `NavigateToPose` action goal;
+- ~~cmd_vel → gate routing (shared with the teach&repeat cmd_vel→gate work): MPPI emits
+  `/cmd_vel`, but it is not yet routed to `vehicle_cmd_gate`, so `mppi` mode is not yet
+  drivable end-to-end.~~ **(now DONE, see 2026-07-02 update below)**
+- ~~a goal relay turning `/planning/offroad_goal` into a `NavigateToPose` action goal.~~
+  **(now DONE, see 2026-07-02 update below)**
 - add a dynamic-obstacle critic and tune critics; sim-drive + **GPU** provisioning; watch
-  for local minima;
+  for local minima; the end-to-end sim-drive (incl. AUTONOMOUS-engage-without-trajectory
+  check) is still unverified even though routing is now wired — see README's safety-model
+  caveat.
 - keep Hybrid A\* (REEDS_SHEPP) as the global planner: it plans the route, MPPI drives it.
+
+### Update 2026-07-02 — `mppi` mode is now drivable (branch `feat/offroad-mppi-drive`)
+
+**DONE:** both seams called out above are closed.
+
+- **Goal relay** — new `offroad_goal_relay_node` converts `/planning/offroad_goal`
+  (PoseStamped) into a `NavigateToPose` action goal for `bt_navigator`, and
+  `/planning/offroad_cancel` (`Bool`) into `async_cancel_all_goals`. Modeled on the
+  reviewed `nav2_navigate_through_poses_bridge` (goal-rejection callback + `goal_in_flight_`
+  re-entrancy guard ported from there). Publishes `~/result`
+  (NONE/ACTIVE/SUCCEEDED/ABORTED/CANCELED). Reuses the existing goal/cancel topics, so RTH,
+  the RViz Off-road Goal tool, and `offroad_demo_tour.py` work unchanged in `mppi` mode.
+- **cmd_vel → gate routing** — `cmd_vel_to_control_bridge` (bicycle model + stale-`cmd_vel`
+  hold-stop watchdog) ported verbatim from `feat/teach-repeat-rth` (already reviewed, 5
+  gtests green there), with `initial_enabled:=true` in `mppi` mode and gear output remapped
+  to `auto_gear_cmd_topic` (`/planning/gear_cmd`). Its `Control` output is routed onto
+  `vehicle_cmd_gate`'s AUTO input via a new `auto_control_cmd_topic` launch arg threaded
+  through `tier4_control_launch/control.launch.xml` (mirrors the existing
+  `auto_gear_cmd_topic` precedent); default value keeps `bridge` mode at zero behavior
+  change. Run with `local_layer:=mppi auto_control_cmd_topic:=/nav2_offroad/mppi/control_cmd`.
+  See README's "`mppi` mode: routing complete; end-to-end sim-drive pending" section for the full run command
+  and safety model.
+- **v1 is forward-only** (`vx_min: 0.0`); see TUNING.md for the reverse-support pointer.
+
+**Also fixed incidentally in this branch:** a pre-existing `<param if=...>` parse bug on the
+`planner_server` lattice overlay — ROS 2 Humble's `launch_xml` frontend does not support
+`if`/`unless` attributes on `<param>` elements (only on `<node>`/`<group>`/`<let>`). It was
+blocking launch-file parsing in *both* `local_layer` modes, not just `global_planner:=lattice`.
+Fixed by splitting the single conditional-`<param>` `planner_server` node into two full
+`<node>` entries gated with `if`/`unless` on `global_planner` (see
+`launch/nav2_offroad.launch.xml`).
+
+**Remaining:**
+
+- **Sim-check:** confirm `AUTONOMOUS` engage succeeds without `/planning/trajectory` being
+  published (`allow_autonomous_in_stopped: true` should permit standstill engage — not yet
+  verified end-to-end in sim). See README "Open sim-check caveat".
+- **Reverse driving:** `vx_min < 0` plus gear-sequencing (stop-before-gear-change) in the
+  bridge, same shape as BACKLOG #6's reverse work — deferred follow-up.
+- **GPU / critic tuning:** add a dynamic-obstacle critic, tune critic weights, provision a
+  GPU for MPPI's parallel rollouts, watch for local minima.
+- **`mppi_recovery` follow-ups (EXPERIMENTAL mode):** (a) ~~reverse variant~~ **DONE** via
+  `allow_reverse:=true` (REEDS_SHEPP + MPPI `vx_min: -1.5` + stop-and-shift gear sequencing +
+  `backup` recovery); remaining: reverse speed / `reverse_penalty` tuning. (b) MPPI
+  weaving/tracking tuning to reduce how often recovery triggers; (c) promote `mppi_recovery`
+  from experimental to the default MPPI mode once sim-validated; (d) side-by-side
+  `local_controller` mppi-vs-rpp validation; promote the winner to default.

@@ -35,6 +35,7 @@
   <arg name="launch_vehicle_interface" default="true" description="launch vehicle interface"/>
   <!-- Control -->
   <arg name="check_external_emergency_heartbeat" default="false"/>
+  <arg name="auto_control_cmd_topic" default="/control/trajectory_follower/control_cmd"/>
   <!-- Map -->
   <arg name="lanelet2_map_file" default="lanelet2_map.osm" description="lanelet2 map file name"/>
   <arg name="pointcloud_map_file" default="pointcloud_map.pcd" description="pointcloud map file name"/>
@@ -209,6 +210,7 @@
       <arg name="launch_control_evaluator" value="$(var effective_launch_control_evaluator)"/>
       <arg name="vehicle_cmd_gate_param_path" value="$(var effective_vehicle_cmd_gate_param_path)"/>
       <arg name="auto_gear_cmd_topic" value="$(var effective_auto_gear_cmd_topic)"/>
+      <arg name="auto_control_cmd_topic" value="$(var auto_control_cmd_topic)"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
       <arg name="vehicle_model" value="$(var vehicle_model)"/>
     </include>
