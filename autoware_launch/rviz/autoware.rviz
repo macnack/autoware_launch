@@ -22,8 +22,6 @@ Panels:
     Name: AutowareStatePanel
   - Class: rviz_plugins/ControlModeDisplay
     Name: ControlModeDisplay
-  - Class: autoware::nav2_offroad::rviz_plugin::OffroadModePanel
-    Name: OffroadModePanel
 Visualization Manager:
   Class: ""
   Displays:
@@ -4162,18 +4160,6 @@ Visualization Manager:
           Name: Vehicle
       Enabled: false
       Name: Debug
-    - Class: rviz_default_plugins/Marker
-      Enabled: true
-      Name: OffroadGoalFootprint
-      Namespaces:
-        offroad_goal_footprint: true
-      Topic:
-        Depth: 5
-        Durability Policy: Transient Local
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /planning/offroad_goal/footprint
-      Value: true
   Enabled: true
   Global Options:
     Background Color: 15; 20; 23
@@ -4206,8 +4192,6 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /planning/mission_planning/goal
-    - Class: autoware::nav2_offroad::rviz_plugin::OffroadGoalTool
-      Topic: /planning/offroad_goal
     - Class: tier4_adapi_rviz_plugins::RouteTool
       Topic:
         Depth: 5

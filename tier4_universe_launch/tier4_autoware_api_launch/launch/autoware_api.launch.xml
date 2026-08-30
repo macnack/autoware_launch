@@ -2,7 +2,6 @@
   <!-- AD API options -->
   <arg name="launch_default_adapi" default="true"/>
   <arg name="launch_rviz_adaptors" default="true"/>
-  <arg name="launch_routing_adaptor" default="true"/>
 
   <!-- Evaluation options -->
   <arg name="launch_evaluation_adapter" default="false"/>
@@ -19,9 +18,7 @@
 
   <!-- AD API for RViz -->
   <group if="$(var launch_rviz_adaptors)">
-    <include file="$(find-pkg-share autoware_adapi_adaptors)/launch/rviz_adaptors.launch.xml">
-      <arg name="launch_routing_adaptor" value="$(var launch_routing_adaptor)"/>
-    </include>
+    <include file="$(find-pkg-share autoware_adapi_adaptors)/launch/rviz_adaptors.launch.xml"/>
   </group>
 
   <!-- Evaluation adapter -->
